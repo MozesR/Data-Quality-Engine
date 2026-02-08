@@ -611,6 +611,7 @@
         <button class="tab-btn" id="tab-btn-rules" onclick="switchTab('rules')">DQ Rules Editor</button>
         <button class="tab-btn" id="tab-btn-session" onclick="switchTab('session')">MCP Session</button>
         <button class="tab-btn" id="tab-btn-llm" onclick="switchTab('llm')">LLM Config</button>
+        <button class="tab-btn" id="tab-btn-governance" onclick="switchTab('governance')">Governance</button>
         <button class="tab-btn" id="tab-btn-help" onclick="switchTab('help')">Help</button>
         <button class="tab-btn" id="tab-btn-admin" onclick="switchTab('admin')" style="display:none;">Admin</button>
       </div>
@@ -645,6 +646,7 @@
               <label for="autoCorrectOnSourceChange" style="margin:0;">Run correction automatically when data source changes</label>
             </div>
             <button onclick="previewDataset()">Preview Dataset</button>
+            <button class="ghost" onclick="refreshDriftBaseline()">Refresh Drift Baseline</button>
             <button onclick="runAssessment()">Run Assessment</button>
             <button class="secondary" onclick="runCorrection()">Run Correction</button>
             <button class="secondary" onclick="getRuns()">Workflow History</button>
@@ -829,6 +831,60 @@
         </div>
       </section>
 
+      <section id="tab-governance" class="tab">
+        <div class="grid">
+          <div class="card">
+            <h3>Rule Versioning</h3>
+            <button class="ghost" onclick="loadRuleVersions()">Refresh Versions</button>
+            <div id="ruleVersionsView" style="margin-top:10px;">No rule versions loaded.</div>
+            <label>From Version ID</label>
+            <input id="ruleDiffFrom" placeholder="rv-..." />
+            <label>To Version ID</label>
+            <input id="ruleDiffTo" placeholder="rv-..." />
+            <button class="ghost" onclick="diffRuleVersionsUi()">Show Diff</button>
+            <label>Rollback Version ID</label>
+            <input id="ruleRollbackId" placeholder="rv-..." />
+            <button class="secondary" onclick="rollbackRuleVersionUi()">Rollback Rules</button>
+            <div id="ruleVersionStatus" style="margin-top:10px;"></div>
+          </div>
+
+          <div class="card">
+            <h3>Workflow Scheduler & Alerts</h3>
+            <label>Job Name</label>
+            <input id="jobName" placeholder="daily-customer-profile" />
+            <label>Provider</label>
+            <input id="jobProvider" value="BANK_A" />
+            <label>Dataset Type</label>
+            <input id="jobDatasetType" value="customer_profile" />
+            <label>Dataset ID</label>
+            <input id="jobDatasetId" value="scheduled-dataset" />
+            <label>Process Type</label>
+            <select id="jobProcessType">
+              <option value="assessment">assessment</option>
+              <option value="correction">correction</option>
+              <option value="both">both</option>
+            </select>
+            <label>Interval Minutes</label>
+            <input id="jobInterval" type="number" min="1" value="60" />
+            <label>SLA Minimum Quality (optional)</label>
+            <input id="jobSlaMinQuality" type="number" min="0" max="100" placeholder="95" />
+            <button onclick="createWorkflowJobUi()">Create Job</button>
+            <button class="ghost" onclick="runDueJobsUi()">Run Due Jobs</button>
+            <button class="ghost" onclick="loadWorkflowJobsUi()">Refresh Jobs</button>
+            <button class="ghost" onclick="loadAlertsUi()">Refresh Alerts</button>
+            <div id="workflowJobsView" style="margin-top:10px;">No jobs loaded.</div>
+            <div id="alertsView" style="margin-top:10px;">No alerts loaded.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Webhook Integration</h3>
+          <button class="ghost" onclick="loadIntegrationStatusUi()">Refresh Integration Status</button>
+          <button class="secondary" onclick="sendTestEventUi()">Send Test Event</button>
+          <div id="integrationStatusView" style="margin-top:10px;">No integration status loaded.</div>
+        </div>
+      </section>
+
       <section id="tab-admin" class="tab">
         <div class="card">
           <h3>Admin User Management</h3>
@@ -879,7 +935,7 @@
         if (tab === "llm" && !isLlmTabEnabledForActiveServer()) {
           tab = "run";
         }
-        ["run", "rules", "session", "llm", "help", "admin"].forEach(t => {
+        ["run", "rules", "session", "llm", "governance", "help", "admin"].forEach(t => {
           document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
           document.getElementById(`tab-btn-${t}`).classList.toggle("active", t === tab);
         });
@@ -915,6 +971,11 @@
       function renderLlmStatus(html) { document.getElementById("llmStatus").innerHTML = html; }
       function renderAcceptedSuggestions(html) { document.getElementById("acceptedSuggestionsView").innerHTML = html; }
       function renderDeclinedSuggestions(html) { document.getElementById("declinedSuggestionsView").innerHTML = html; }
+      function renderRuleVersions(html) { document.getElementById("ruleVersionsView").innerHTML = html; }
+      function renderRuleVersionStatus(html) { document.getElementById("ruleVersionStatus").innerHTML = html; }
+      function renderWorkflowJobs(html) { document.getElementById("workflowJobsView").innerHTML = html; }
+      function renderAlerts(html) { document.getElementById("alertsView").innerHTML = html; }
+      function renderIntegrationStatus(html) { document.getElementById("integrationStatusView").innerHTML = html; }
       function renderError(htmlTargetFn, message) { htmlTargetFn(`<div class="err"><strong>Error:</strong> ${escapeHtml(message)}</div>`); }
       function renderSuggestionDetail(html) { document.getElementById("rulesStatus").innerHTML = html; }
 
@@ -2041,6 +2102,10 @@
         }
         await loadRulesEditor();
         await loadSuggestionDecisionViews();
+        await loadRuleVersions();
+        await loadWorkflowJobsUi();
+        await loadAlertsUi();
+        await loadIntegrationStatusUi();
         await adminLoadUsers();
       }
 
@@ -2237,8 +2302,13 @@
         const correction = suggestion.correction_rule || null;
         const position = `${currentSuggestionIndex + 1} / ${suggestionQueue.length}`;
         const sourceServer = suggestion.__server_url || activeMcpBase;
+        const severity = String(assessment.severity || "medium").toLowerCase();
+        const approvalNote = severity === "high"
+          ? `<div class="err" style="margin-bottom:8px;"><strong>High severity:</strong> 2 approvals required before rule is applied.</div>`
+          : `<div class="ok" style="margin-bottom:8px;"><strong>Policy:</strong> 1 approval required.</div>`;
 
         document.getElementById("suggestionBody").innerHTML = `
+          ${approvalNote}
           <p><strong>Suggestion:</strong> ${escapeHtml(position)}</p>
           <p><strong>Source MCP Server:</strong> ${escapeHtml(sourceServer)}</p>
           <p><strong>Reason:</strong> ${escapeHtml(suggestion.reason || "")}</p>
@@ -2305,8 +2375,16 @@
         const currentSuggestion = getCurrentSuggestion();
         if (!currentSuggestion) return;
         try {
-          await mcpCallTo(currentSuggestion.__server_url || activeMcpBase, "approve_suggestion", { suggestion_id: currentSuggestion.suggestion_id });
+          const resp = await mcpCallTo(currentSuggestion.__server_url || activeMcpBase, "approve_suggestion", { suggestion_id: currentSuggestion.suggestion_id });
+          const approval = resp.result || {};
           await loadSuggestionDecisionViews();
+          const req = Number(approval.approval_required || 1);
+          const count = Number(approval.approval_count || 1);
+          if (req > 1 && count < req) {
+            renderRun(`<div class="ok">Suggestion approval recorded (${count}/${req}). Awaiting additional approver before applying rule.</div>`);
+            skipCurrentSuggestion();
+            return;
+          }
           renderRun(`<div class="ok">Suggestion approved and stored. Re-running assessment and correction with updated rules...</div>`);
           skipCurrentSuggestion();
           await runAssessment(false, false);
@@ -2354,6 +2432,7 @@
 
           const summaryRows = results.map(({ serverUrl, data }) => {
             const r = data.result || {};
+            const drift = r.drift || {};
             return {
               "MCP Server": serverUrl,
               "Run ID": data.run_id || "-",
@@ -2361,12 +2440,32 @@
               "Quality Index": `${r.quality_index ?? "-"}%`,
               "Failed Checks": `${r.failed_checks ?? 0} / ${r.total_checks ?? 0}`,
               "Violations": (r.violations || []).length,
+              "Drift Status": drift.status || "n/a",
               LLM: `${(r.llm || {}).provider || "-"} / ${(r.llm || {}).model || "-"}`,
             };
           });
+          const driftSections = results.map(({ serverUrl, data }) => {
+            const drift = (data.result || {}).drift || {};
+            const changes = Array.isArray(drift.changes) ? drift.changes : [];
+            const rows = changes.map((c) => ({
+              "Field": c.field || "-",
+              "Change": c.change || "-",
+              "Before": c.before ?? "-",
+              "After": c.after ?? "-",
+            }));
+            return `
+              <div class="card" style="margin-top:10px;">
+                <h4>Data Drift (${escapeHtml(serverUrl)})</h4>
+                <div class="metric"><strong>Status:</strong> ${escapeHtml(drift.status || "n/a")}</div>
+                <div class="metric"><strong>Baseline ID:</strong> ${escapeHtml(drift.baseline_id || "-")}</div>
+                ${rows.length ? renderTable(rows) : "<p>No drift changes detected.</p>"}
+              </div>
+            `;
+          }).join("");
           renderRun(`
             <h4>Assessment Completed (${results.length} server${results.length > 1 ? "s" : ""})</h4>
             ${renderTable(summaryRows)}
+            ${driftSections}
           `);
 
           const suggestions = results.flatMap(({ serverUrl, data }) =>
@@ -2379,6 +2478,39 @@
               openSuggestionModalWithQueue(suggestions);
             }
           }
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function refreshDriftBaseline() {
+        try {
+          if (!ensureLoggedIn("Refresh Drift Baseline", renderRun)) return;
+          const targets = getSelectedRunServers();
+          if (!ensureLoggedInForServers(targets, "Refresh Drift Baseline", renderRun)) return;
+          const args = readArgs();
+          const results = await Promise.all(
+            targets.map(async (serverUrl) => {
+              const resp = await mcpCallTo(serverUrl, "refresh_drift_baseline", {
+                provider: args.provider,
+                dataset_type: args.dataset_type,
+                limit: args.limit,
+              });
+              return { serverUrl, result: resp.result || {} };
+            })
+          );
+          const rows = results.map((x) => ({
+            "MCP Server": x.serverUrl,
+            "Dataset Type": x.result.dataset_type || args.dataset_type,
+            "Provider": x.result.provider || args.provider,
+            "Baseline ID": x.result.baseline_id || "-",
+            "Record Count": ((x.result.profile || {}).record_count ?? "-"),
+          }));
+          renderRun(`
+            <h4>Drift Baseline Refreshed (${results.length} server${results.length > 1 ? "s" : ""})</h4>
+            ${renderTable(rows)}
+            <div class="ok" style="margin-top:8px;">Run assessment to see drift comparison against these baselines.</div>
+          `);
         } catch (e) {
           renderError(renderRun, parseErrorMessage(e));
         }
@@ -2492,10 +2624,75 @@
             ${violations.length ? `<h4>Violations</h4>${renderTable(violations)}` : ""}
             ${corrections.length ? `<h4>Applied Corrections</h4>${renderTable(corrections)}` : ""}
             ${(!violations.length && !corrections.length) ? "<p>No detailed rows available for this run.</p>" : ""}
+            <h4>Row-level Lineage</h4>
+            <button class="ghost" onclick="showLineageForRun('${escapeHtml(serverUrl)}','${escapeHtml(d.run_id)}')">Show Lineage Trace</button>
+            <div id="lineageOutput" style="margin-top:10px;"></div>
+            <h4 style="margin-top:14px;">Audit Pack Export</h4>
+            <button class="ghost" onclick="exportAuditPackForRun('${escapeHtml(serverUrl)}','${escapeHtml(d.run_id)}')">Export Audit Pack (CSV/PDF)</button>
+            <div id="auditPackOutput" style="margin-top:10px;"></div>
             <button class="secondary" onclick="getRuns()">Back To History</button>
           `);
         } catch (e) {
           renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function showLineageForRun(serverUrl, runId) {
+        try {
+          if (!ensureLoggedIn("Row-level Lineage", renderRun)) return;
+          const resp = await mcpCallTo(serverUrl, "trace_lineage", { run_id: runId });
+          const result = resp.result || {};
+          const rows = (result.lineage || []).map((x) => ({
+            "Record": x.record_index,
+            "Field": x.field || "-",
+            "Violation Rule": x.violation_rule_id || "-",
+            "Severity": x.violation_severity || "-",
+            "Reason": x.violation_reason || "-",
+            "Correction": x.correction_action || "-",
+            "New Value": x.new_value ?? "-",
+            "Downstream Systems": Array.isArray(x.downstream_systems) ? x.downstream_systems.join(", ") : "-",
+          }));
+          const el = document.getElementById("lineageOutput");
+          if (!el) return;
+          el.innerHTML = rows.length
+            ? renderTable(rows)
+            : "<p>No row-level lineage items found for this run.</p>";
+        } catch (e) {
+          const el = document.getElementById("lineageOutput");
+          if (el) {
+            el.innerHTML = `<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`;
+          } else {
+            renderError(renderRun, parseErrorMessage(e));
+          }
+        }
+      }
+
+      async function exportAuditPackForRun(serverUrl, runId) {
+        try {
+          if (!ensureLoggedIn("Export Audit Pack", renderRun)) return;
+          const resp = await mcpCallTo(serverUrl, "export_audit_pack", { run_id: runId, format: "both" });
+          const result = resp.result || {};
+          const files = result.files || {};
+          const rows = Object.entries(files).map(([name, path]) => ({
+            "Artifact": name,
+            "File Path": path,
+          }));
+          const el = document.getElementById("auditPackOutput");
+          if (!el) return;
+          el.innerHTML = `
+            <div class="ok">
+              <strong>Audit pack exported</strong><br/>
+              Run ID: ${escapeHtml(result.run_id || runId)}
+            </div>
+            ${rows.length ? renderTable(rows) : "<p>No files were generated.</p>"}
+          `;
+        } catch (e) {
+          const el = document.getElementById("auditPackOutput");
+          if (el) {
+            el.innerHTML = `<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`;
+          } else {
+            renderError(renderRun, parseErrorMessage(e));
+          }
         }
       }
 
@@ -2977,6 +3174,188 @@
           renderDeclinedSuggestions(renderSuggestionDecisionTable(declined));
         } catch (e) {
           renderError(renderRulesStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function loadRuleVersions() {
+        try {
+          if (!ensureLoggedIn("Load Rule Versions", renderRuleVersions)) return;
+          const resp = await mcpCall("list_rule_versions", { limit: 50 });
+          const rows = (resp.result || []).map((x) => ({
+            "Version ID": x.version_id,
+            "Note": x.note || "-",
+            "Created At": formatIso(x.created_at),
+            "Action": `<button class="ghost" onclick="prefillRuleVersion('${escapeHtml(x.version_id)}')">Use</button>`,
+          }));
+          renderRuleVersions(rows.length ? renderTable(rows) : "<p>No rule versions found.</p>");
+        } catch (e) {
+          renderError(renderRuleVersions, parseErrorMessage(e));
+        }
+      }
+
+      function prefillRuleVersion(versionId) {
+        document.getElementById("ruleDiffFrom").value = versionId;
+        document.getElementById("ruleDiffTo").value = versionId;
+        document.getElementById("ruleRollbackId").value = versionId;
+      }
+
+      async function diffRuleVersionsUi() {
+        try {
+          if (!ensureLoggedIn("Diff Rule Versions", renderRuleVersionStatus)) return;
+          const fromId = document.getElementById("ruleDiffFrom").value.trim();
+          const toId = document.getElementById("ruleDiffTo").value.trim();
+          if (!fromId || !toId) {
+            renderRuleVersionStatus(`<div class="err">Enter both From and To version IDs.</div>`);
+            return;
+          }
+          const resp = await mcpCall("diff_rule_versions", { from_version_id: fromId, to_version_id: toId });
+          const diffText = ((resp.result || {}).diff_text || "").trim();
+          renderRuleVersionStatus(diffText
+            ? `<h4>Diff</h4><pre class="output" style="white-space:pre-wrap;">${escapeHtml(diffText)}</pre>`
+            : "<p>No differences found.</p>");
+        } catch (e) {
+          renderError(renderRuleVersionStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function rollbackRuleVersionUi() {
+        try {
+          if (!ensureLoggedIn("Rollback Rule Version", renderRuleVersionStatus)) return;
+          const versionId = document.getElementById("ruleRollbackId").value.trim();
+          if (!versionId) {
+            renderRuleVersionStatus(`<div class="err">Enter Rollback Version ID.</div>`);
+            return;
+          }
+          const resp = await mcpCall("rollback_rule_version", { version_id: versionId });
+          const r = resp.result || {};
+          renderRuleVersionStatus(`<div class="ok">${escapeHtml(r.message || "Rollback completed")} (new version: ${escapeHtml(r.new_version_id || "-")})</div>`);
+          await loadRuleVersions();
+          await loadRulesEditor();
+        } catch (e) {
+          renderError(renderRuleVersionStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function createWorkflowJobUi() {
+        try {
+          if (!ensureLoggedIn("Create Workflow Job", renderWorkflowJobs)) return;
+          const name = document.getElementById("jobName").value.trim() || "scheduled-job";
+          const provider = document.getElementById("jobProvider").value.trim() || "BANK_A";
+          const dataset_type = document.getElementById("jobDatasetType").value.trim() || "customer_profile";
+          const dataset_id = document.getElementById("jobDatasetId").value.trim() || "scheduled-dataset";
+          const process_type = document.getElementById("jobProcessType").value;
+          const interval_minutes = Number(document.getElementById("jobInterval").value || 60);
+          const slaRaw = document.getElementById("jobSlaMinQuality").value.trim();
+          const payload = { name, provider, dataset_type, dataset_id, process_type, interval_minutes };
+          if (slaRaw) payload.sla_min_quality = Number(slaRaw);
+          const resp = await mcpCall("create_workflow_job", payload);
+          const r = resp.result || {};
+          renderWorkflowJobs(`<div class="ok">Job created: ${escapeHtml(r.job_id || "-")}</div>`);
+          await loadWorkflowJobsUi();
+        } catch (e) {
+          renderError(renderWorkflowJobs, parseErrorMessage(e));
+        }
+      }
+
+      async function loadWorkflowJobsUi() {
+        try {
+          if (!ensureLoggedIn("Load Workflow Jobs", renderWorkflowJobs)) return;
+          const resp = await mcpCall("list_workflow_jobs", { limit: 100 });
+          const rows = (resp.result || []).map((x) => ({
+            "Job ID": x.job_id,
+            "Name": x.name,
+            "Dataset": `${x.provider}/${x.dataset_type}`,
+            "Process": x.process_type,
+            "Interval": `${x.interval_minutes}m`,
+            "SLA": x.sla_min_quality ?? "-",
+            "Next Run": formatIso(x.next_run_at),
+            "Status": `${x.is_active ? "active" : "paused"} (${x.last_status || "-"})`,
+            "Action": x.is_active
+              ? `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', false)">Pause</button>`
+              : `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', true)">Resume</button>`,
+          }));
+          renderWorkflowJobs(rows.length ? renderTable(rows) : "<p>No workflow jobs configured.</p>");
+        } catch (e) {
+          renderError(renderWorkflowJobs, parseErrorMessage(e));
+        }
+      }
+
+      async function toggleWorkflowJobUi(jobId, isActive) {
+        try {
+          if (!ensureLoggedIn("Toggle Workflow Job", renderWorkflowJobs)) return;
+          await mcpCall("toggle_workflow_job", { job_id: jobId, is_active: !!isActive });
+          await loadWorkflowJobsUi();
+        } catch (e) {
+          renderError(renderWorkflowJobs, parseErrorMessage(e));
+        }
+      }
+
+      async function runDueJobsUi() {
+        try {
+          if (!ensureLoggedIn("Run Due Workflow Jobs", renderWorkflowJobs)) return;
+          const resp = await mcpCall("run_due_workflow_jobs", { limit: 20 });
+          const r = resp.result || {};
+          const rows = (r.executed || []).map((x) => ({
+            "Job ID": x.job_id,
+            "Status": x.status || "-",
+            "Error": x.error || "-",
+          }));
+          renderWorkflowJobs(`
+            <div class="ok">Due jobs executed: ${escapeHtml(r.count ?? 0)}</div>
+            ${rows.length ? renderTable(rows) : "<p>No due jobs were executed.</p>"}
+          `);
+          await loadWorkflowJobsUi();
+          await loadAlertsUi();
+        } catch (e) {
+          renderError(renderWorkflowJobs, parseErrorMessage(e));
+        }
+      }
+
+      async function loadAlertsUi() {
+        try {
+          if (!ensureLoggedIn("Load Alerts", renderAlerts)) return;
+          const resp = await mcpCall("list_alerts", { limit: 100 });
+          const rows = (resp.result || []).map((x) => ({
+            "Time": formatIso(x.created_at),
+            "Source": x.source || "-",
+            "Severity": x.severity || "-",
+            "Message": shortText(x.message || "-", 160),
+          }));
+          renderAlerts(rows.length ? renderTable(rows) : "<p>No alerts found.</p>");
+        } catch (e) {
+          renderError(renderAlerts, parseErrorMessage(e));
+        }
+      }
+
+      async function loadIntegrationStatusUi() {
+        try {
+          if (!ensureLoggedIn("Load Integration Status", renderIntegrationStatus)) return;
+          const resp = await mcpCall("get_integration_status", {});
+          const r = resp.result || {};
+          renderIntegrationStatus(renderTable([{
+            "Event Webhook Configured": r.event_webhook_configured ? "yes" : "no",
+            "Ticket Webhook Configured": r.ticket_webhook_configured ? "yes" : "no",
+            "Quality Alert Threshold": r.alert_quality_threshold ?? "-",
+          }]));
+        } catch (e) {
+          renderError(renderIntegrationStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function sendTestEventUi() {
+        try {
+          if (!ensureLoggedIn("Send Test Event", renderIntegrationStatus)) return;
+          const resp = await mcpCall("send_test_event", {
+            event_type: "idqe_test_event",
+            payload: { source: "governance-tab", message: "Test webhook from UI" },
+          });
+          const r = resp.result || {};
+          renderIntegrationStatus(`
+            <div class="ok">Test event processed.</div>
+            ${renderTable([{ "Event Type": r.event_type || "-", "Delivered": r.sent ? "yes" : "no", "Payload": JSON.stringify(r.payload || {}) }])}
+          `);
+        } catch (e) {
+          renderError(renderIntegrationStatus, parseErrorMessage(e));
         }
       }
 

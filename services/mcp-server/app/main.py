@@ -1997,6 +1997,8 @@ def tools_list() -> dict[str, Any]:
             {"name": "create_ticket_from_run", "description": "Create external ticket payload/webhook from run"},
             {"name": "admin_set_team_policy", "description": "Admin: set team RBAC policy (datasets/servers/scoped-admin)"},
             {"name": "admin_list_team_policies", "description": "Admin: list team RBAC policies"},
+            {"name": "get_integration_status", "description": "Get webhook/integration configuration status"},
+            {"name": "send_test_event", "description": "Send a test webhook event"},
         ]
     }
 
@@ -2833,5 +2835,23 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
     if tool == "admin_list_team_policies":
         require_admin(user)
         return {"result": list_team_policies()}
+
+    if tool == "get_integration_status":
+        if AUTH_REQUIRED and not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        return {
+            "result": {
+                "event_webhook_configured": bool(EVENT_WEBHOOK_URL),
+                "ticket_webhook_configured": bool(TICKET_WEBHOOK_URL),
+                "alert_quality_threshold": ALERT_QUALITY_THRESHOLD,
+            }
+        }
+
+    if tool == "send_test_event":
+        enforce_authenticated_write(user)
+        event_type = str(args.get("event_type", "idqe_test_event")).strip() or "idqe_test_event"
+        payload = args.get("payload") if isinstance(args.get("payload"), dict) else {"message": "IDQE test event"}
+        await send_event(event_type, payload)
+        return {"result": {"event_type": event_type, "sent": bool(EVENT_WEBHOOK_URL), "payload": to_jsonable(payload)}}
 
     raise HTTPException(status_code=404, detail=f"Unknown tool: {tool}")
