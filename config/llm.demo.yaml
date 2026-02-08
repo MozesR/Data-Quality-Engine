@@ -4,4 +4,4 @@ llm:
   endpoint: null
   api_key_env: OPENAI_API_KEY
   api_key: ""
-  temperature: 0
+  temperature: 0.0

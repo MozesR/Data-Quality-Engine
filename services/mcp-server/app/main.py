@@ -32,6 +32,10 @@ DEMO_ADMIN_EMAIL = os.getenv("DEMO_ADMIN_EMAIL", "admin@idqe.local")
 DEMO_ADMIN_PASSWORD = os.getenv("DEMO_ADMIN_PASSWORD", "Admin123!")
 CORS_ALLOW_ORIGINS = [x.strip() for x in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080").split(",") if x.strip()]
 UI_ALLOW_LLM_TAB = os.getenv("UI_ALLOW_LLM_TAB", "false" if AUTH_MODE == "production" else "true").lower() == "true"
+LOGIN_MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "8"))
+LOGIN_WINDOW_SECONDS = int(os.getenv("LOGIN_WINDOW_SECONDS", "300"))
+LOGIN_LOCK_SECONDS = int(os.getenv("LOGIN_LOCK_SECONDS", "900"))
+PENDING_SUGGESTIONS_RETENTION_DAYS = int(os.getenv("PENDING_SUGGESTIONS_RETENTION_DAYS", "30"))
 
 DEFAULT_RULES_CONFIG: dict[str, Any] = {
     "data_sources": [
@@ -169,6 +173,8 @@ pending_suggestions_store = Table(
 )
 
 engine = create_engine(DATABASE_URL, future=True)
+login_attempts: dict[str, list[int | float]] = {}
+login_locks: dict[str, float] = {}
 
 
 class MCPCall(BaseModel):
@@ -226,6 +232,49 @@ def ensure_security_defaults() -> None:
             raise RuntimeError("AUTH_REQUIRED must be true in production mode")
         if AUTH_SECRET == "dev-insecure-secret-change-me":
             raise RuntimeError("AUTH_SECRET must be set to a strong secret in production mode")
+
+
+def enforce_authenticated_write(user: dict[str, Any] | None) -> None:
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required for write operation")
+
+
+def client_ip(request: Request) -> str:
+    xff = request.headers.get("X-Forwarded-For", "").strip()
+    if xff:
+        return xff.split(",")[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
+def login_key(email: str, ip: str) -> str:
+    return f"{email}|{ip}"
+
+
+def login_is_locked(key: str) -> bool:
+    now_ts = utcnow().timestamp()
+    until = login_locks.get(key, 0.0)
+    if until > now_ts:
+        return True
+    if key in login_locks:
+        login_locks.pop(key, None)
+    return False
+
+
+def login_record_failure(key: str) -> None:
+    now_ts = utcnow().timestamp()
+    wins = [t for t in login_attempts.get(key, []) if now_ts - t <= LOGIN_WINDOW_SECONDS]
+    wins.append(now_ts)
+    login_attempts[key] = wins
+    if len(wins) >= LOGIN_MAX_ATTEMPTS:
+        login_locks[key] = now_ts + LOGIN_LOCK_SECONDS
+        login_attempts.pop(key, None)
+
+
+def login_record_success(key: str) -> None:
+    login_attempts.pop(key, None)
+    login_locks.pop(key, None)
 
 
 # ---------- auth ----------
@@ -288,12 +337,14 @@ def parse_token(token: str) -> dict[str, Any] | None:
 def get_current_user(request: Request, allow_anonymous: bool = False) -> dict[str, Any] | None:
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
-        if allow_anonymous and not AUTH_REQUIRED:
+        if allow_anonymous:
             return None
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = auth[7:]
     payload = parse_token(token)
     if not payload:
+        if allow_anonymous:
+            return None
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     with engine.begin() as conn:
@@ -302,9 +353,13 @@ def get_current_user(request: Request, allow_anonymous: bool = False) -> dict[st
             {"id": int(payload.get("uid", 0))},
         ).mappings().first()
     if not row:
+        if allow_anonymous:
+            return None
         raise HTTPException(status_code=401, detail="User not found")
     user = dict(row)
     if not user.get("is_active"):
+        if allow_anonymous:
+            return None
         raise HTTPException(status_code=403, detail="User is inactive")
     return user
 
@@ -376,12 +431,13 @@ def get_user_settings(user_id: int) -> dict[str, Any]:
 
 def upsert_user_rules_config(user_id: int, config: dict[str, Any]) -> None:
     now = utcnow()
+    cfg_json = json.dumps(to_jsonable(config))
     with engine.begin() as conn:
         existing = conn.execute(text("SELECT id FROM user_settings WHERE user_id = :uid LIMIT 1"), {"uid": user_id}).mappings().first()
         if existing:
             conn.execute(
                 text("UPDATE user_settings SET rules_config = :cfg, updated_at = :upd WHERE user_id = :uid"),
-                {"cfg": to_jsonable(config), "upd": now, "uid": user_id},
+                {"cfg": cfg_json, "upd": now, "uid": user_id},
             )
         else:
             conn.execute(
@@ -397,12 +453,13 @@ def upsert_user_rules_config(user_id: int, config: dict[str, Any]) -> None:
 
 def upsert_user_mcp_servers(user_id: int, servers: list[dict[str, Any]]) -> None:
     now = utcnow()
+    servers_json = json.dumps(to_jsonable(servers))
     with engine.begin() as conn:
         existing = conn.execute(text("SELECT id FROM user_settings WHERE user_id = :uid LIMIT 1"), {"uid": user_id}).mappings().first()
         if existing:
             conn.execute(
                 text("UPDATE user_settings SET mcp_servers = :servers, updated_at = :upd WHERE user_id = :uid"),
-                {"servers": to_jsonable(servers), "upd": now, "uid": user_id},
+                {"servers": servers_json, "upd": now, "uid": user_id},
             )
         else:
             conn.execute(
@@ -741,6 +798,7 @@ def infer_mode(values: list[Any]) -> Any:
 
 
 def save_pending_suggestion(suggestion: dict[str, Any]) -> None:
+    suggestion_json = json.dumps(to_jsonable(suggestion))
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -754,7 +812,7 @@ def save_pending_suggestion(suggestion: dict[str, Any]) -> None:
             {
                 "sid": suggestion.get("suggestion_id"),
                 "dataset_type": suggestion.get("dataset_type"),
-                "suggestion": to_jsonable(suggestion),
+                "suggestion": suggestion_json,
                 "owner_user_id": suggestion.get("owner_user_id"),
                 "created_at": utcnow(),
             },
@@ -1022,6 +1080,28 @@ def ensure_schema_evolution() -> None:
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
         conn.execute(text("ALTER TABLE suggestion_decisions ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_workflow_runs_owner_created ON workflow_runs(owner_user_id, created_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_suggestion_decisions_owner_created ON suggestion_decisions(owner_user_id, created_at DESC)"))
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_pending_suggestions_status_owner_created "
+                "ON pending_suggestions_store(status, owner_user_id, created_at DESC)"
+            )
+        )
+
+
+def cleanup_suggestion_store() -> None:
+    cutoff = utcnow() - timedelta(days=PENDING_SUGGESTIONS_RETENTION_DAYS)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                DELETE FROM pending_suggestions_store
+                WHERE status IN ('approved', 'declined') AND created_at < :cutoff
+                """
+            ),
+            {"cutoff": cutoff},
+        )
 
 
 @app.on_event("startup")
@@ -1029,6 +1109,7 @@ def startup() -> None:
     ensure_security_defaults()
     ensure_tables()
     ensure_schema_evolution()
+    cleanup_suggestion_store()
     ensure_demo_admin()
     ensure_demo_shared_servers()
 
@@ -1072,6 +1153,7 @@ def tools_list() -> dict[str, Any]:
             {"name": "preview_dataset", "description": "Preview rows from selected dataset"},
             {"name": "run_dq_assessment", "description": "Execute data quality checks for dataset"},
             {"name": "run_correction", "description": "Apply correction rules"},
+            {"name": "simulate_rules", "description": "Simulate assessment rules without saving changes"},
             {"name": "get_workflow_runs", "description": "Return workflow execution history"},
             {"name": "get_workflow_run_detail", "description": "Return one workflow run including full result payload"},
             {"name": "get_rules_yaml", "description": "Get DQ rule configuration as YAML text"},
@@ -1134,16 +1216,22 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
     if tool == "auth_login":
         email = str(args.get("email", "")).strip().lower()
         password = str(args.get("password", ""))
+        key = login_key(email, client_ip(request))
+        if login_is_locked(key):
+            raise HTTPException(status_code=429, detail="Too many failed login attempts. Try again later.")
         with engine.begin() as conn:
             row = conn.execute(
                 text("SELECT id, email, name, role, is_active, password_hash FROM users WHERE email = :email LIMIT 1"),
                 {"email": email},
             ).mappings().first()
             if not row or not verify_password(password, str(row.get("password_hash", ""))):
+                login_record_failure(key)
                 raise HTTPException(status_code=401, detail="Invalid credentials")
             if not row.get("is_active"):
+                login_record_failure(key)
                 raise HTTPException(status_code=403, detail="User is inactive")
             conn.execute(text("UPDATE users SET last_login_at = :ts WHERE id = :id"), {"ts": utcnow(), "id": row["id"]})
+        login_record_success(key)
         token = make_token(int(row["id"]), str(row["role"]))
         return {
             "result": {
@@ -1182,6 +1270,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": data}
 
     if tool == "admin_update_user":
+        enforce_authenticated_write(user)
         require_admin(user)
         target_user_id = int(args.get("user_id", 0))
         role = args.get("role")
@@ -1210,6 +1299,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": {"servers": get_user_mcp_servers(user_id)}}
 
     if tool == "save_user_mcp_servers":
+        enforce_authenticated_write(user)
         if user_id is None:
             raise HTTPException(status_code=401, detail="Authentication required")
         servers = args.get("servers", [])
@@ -1228,6 +1318,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": {"servers": get_shared_mcp_servers(include_inactive=True)}}
 
     if tool == "admin_save_shared_mcp_servers":
+        enforce_authenticated_write(user)
         require_admin(user)
         servers = args.get("servers", [])
         if not isinstance(servers, list):
@@ -1301,6 +1392,35 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
 
         run_id = insert_run(dataset_id, dataset_type, provider, "correction", "completed", result, user_id)
         return {"run_id": run_id, "result": result}
+
+    if tool == "simulate_rules":
+        if AUTH_REQUIRED and not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        dataset_type = args.get("dataset_type", "customer_profile")
+        dataset_id = args.get("dataset_id", f"{dataset_type}-simulation")
+        provider = args.get("provider", "BANK_A")
+        rows = query_dataset(dataset_type, int(args.get("limit", 50)))
+
+        cfg = args.get("config")
+        assessment_rules = args.get("assessment_rules")
+        if isinstance(cfg, dict):
+            assessment_rules = (cfg.get("assessment_rules") or {}).get(dataset_type)
+        if not isinstance(assessment_rules, list):
+            assessment_rules = get_rules(dataset_type, user_id)
+
+        payload = {
+            "dataset_id": dataset_id,
+            "dataset_type": dataset_type,
+            "provider": provider,
+            "records": rows,
+            "rules": to_jsonable(assessment_rules),
+        }
+        async with httpx.AsyncClient(timeout=90) as client:
+            response = await client.post(f"{DQ_ENGINE_URL}/assess", json=payload)
+            response.raise_for_status()
+            result = response.json()
+        result["simulation"] = True
+        return {"result": result}
 
     if tool == "get_workflow_runs":
         if AUTH_REQUIRED and not user:
@@ -1391,6 +1511,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": {"yaml_text": rules_config_as_yaml_for_user(user_id)}}
 
     if tool == "save_rules_yaml":
+        enforce_authenticated_write(user)
         yaml_text = args.get("yaml_text", "")
         if not isinstance(yaml_text, str) or not yaml_text.strip():
             raise HTTPException(status_code=400, detail="yaml_text is required")
@@ -1401,6 +1522,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": {"config": to_jsonable(load_rules_config_for_user(user_id))}}
 
     if tool == "save_rules_config":
+        enforce_authenticated_write(user)
         config = args.get("config")
         if not isinstance(config, dict):
             raise HTTPException(status_code=400, detail="config object is required")
@@ -1415,6 +1537,9 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": {"yaml_text": llm_config_as_yaml()}}
 
     if tool == "save_llm_yaml":
+        enforce_authenticated_write(user)
+        if AUTH_MODE == "production":
+            raise HTTPException(status_code=403, detail="LLM config updates are file-only in production mode")
         yaml_text = args.get("yaml_text", "")
         if not isinstance(yaml_text, str) or not yaml_text.strip():
             raise HTTPException(status_code=400, detail="yaml_text is required")
@@ -1428,6 +1553,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": {"suggestions": suggestions, "llm_enabled": llm_enabled()}}
 
     if tool == "approve_suggestion":
+        enforce_authenticated_write(user)
         if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         suggestion_id = args.get("suggestion_id", "")
@@ -1436,6 +1562,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": approve_suggestion(suggestion_id, user_id)}
 
     if tool == "decline_suggestion":
+        enforce_authenticated_write(user)
         if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         suggestion_id = args.get("suggestion_id", "")

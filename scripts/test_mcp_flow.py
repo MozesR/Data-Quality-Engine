@@ -75,6 +75,7 @@ def main() -> int:
     required_tools = {
         "run_dq_assessment",
         "run_correction",
+        "simulate_rules",
         "get_rules_yaml",
         "save_rules_yaml",
         "get_llm_yaml",
@@ -165,6 +166,29 @@ def main() -> int:
     disabled_suggestions = (assess_disabled.get("result") or {}).get("suggestions") or []
     assert_true(len(disabled_suggestions) == 0, "Expected zero suggestions when LLM is disabled")
     print("PASS: no suggestions when LLM is disabled")
+
+    simulation = mcp_call(
+        "simulate_rules",
+        {
+            "provider": "BANK_A",
+            "dataset_type": "credit_facility",
+            "dataset_id": "test-simulation",
+            "limit": 25,
+        },
+        token=token,
+    )
+    simulation_result = simulation.get("result") or {}
+    assert_true(simulation_result.get("simulation") is True, "simulate_rules should return simulation=true")
+    assert_true("quality_index" in simulation_result, "simulate_rules missing quality_index")
+    print("PASS: simulate_rules")
+
+    # Write endpoints require auth even in demo mode.
+    try:
+        mcp_call("save_rules_yaml", {"yaml_text": "data_sources: []\nassessment_rules: {}\ncorrection_rules: {}\n"})
+        raise AssertionError("Expected unauthorized save_rules_yaml without token")
+    except RuntimeError as e:
+        assert_true("401" in str(e), "Expected 401 for unauthenticated save_rules_yaml")
+    print("PASS: write endpoints require authentication")
 
     # Cross-user isolation: second user should not see first user's runs.
     email2 = f"smoke2-{int(time.time())}@idqe.local"

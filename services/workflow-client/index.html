@@ -245,6 +245,12 @@
         margin-top: 10px;
         table-layout: fixed;
       }
+      .clickable-row {
+        cursor: pointer;
+      }
+      .clickable-row:hover {
+        background: #eef4ff;
+      }
       th, td {
         text-align: left;
         padding: 8px;
@@ -486,6 +492,32 @@
         height: 100%;
         background: #2d5fd8;
       }
+      .sla-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .sla-card {
+        border: 1px solid #d5e0f0;
+        border-radius: 10px;
+        background: #f8fbff;
+        padding: 10px;
+      }
+      .sla-title {
+        margin: 0 0 6px;
+        font-size: 14px;
+        color: #2b436b;
+        font-weight: 700;
+      }
+      .sla-value {
+        font-size: 22px;
+        font-weight: 800;
+        color: #1f2d46;
+        margin-bottom: 6px;
+      }
+      .sla-pass { color: #0f7a4a; font-weight: 700; }
+      .sla-fail { color: #b91c1c; font-weight: 700; }
       .chart-tooltip {
         position: fixed;
         z-index: 1200;
@@ -673,6 +705,7 @@
           </div>
 
           <button onclick="loadRulesEditor()">Load Rules</button>
+          <button class="ghost" onclick="simulateRulesFromEditor()">Simulate Rules</button>
           <button class="secondary" onclick="saveRulesEditor()">Save Rules</button>
           <button class="ghost" onclick="loadSuggestionDecisionViews()">Refresh Suggestion Decisions</button>
           <div id="rulesStatus" style="margin-top:10px;"></div>
@@ -1247,6 +1280,39 @@
         `;
       }
 
+      function renderSlaDashboard(sla) {
+        const scoreState = sla.avgQuality >= sla.targetQuality ? "sla-pass" : "sla-fail";
+        const corrState = sla.correctionCoverage >= sla.targetCorrectionCoverage ? "sla-pass" : "sla-fail";
+        const reviewState = sla.suggestionReviewRate >= sla.targetSuggestionReviewRate ? "sla-pass" : "sla-fail";
+        return `
+          <div class="chart-shell">
+            <p class="chart-title">SLA Dashboard</p>
+            <div class="sla-grid">
+              <div class="sla-card">
+                <p class="sla-title">Average Quality Index</p>
+                <div class="sla-value">${sla.avgQuality.toFixed(2)}%</div>
+                <div class="${scoreState}">Target ${sla.targetQuality}%</div>
+              </div>
+              <div class="sla-card">
+                <p class="sla-title">Correction Coverage</p>
+                <div class="sla-value">${sla.correctionCoverage.toFixed(2)}%</div>
+                <div class="${corrState}">Target ${sla.targetCorrectionCoverage}%</div>
+              </div>
+              <div class="sla-card">
+                <p class="sla-title">Suggestion Review Rate</p>
+                <div class="sla-value">${sla.suggestionReviewRate.toFixed(2)}%</div>
+                <div class="${reviewState}">Target ${sla.targetSuggestionReviewRate}%</div>
+              </div>
+              <div class="sla-card">
+                <p class="sla-title">Runs In Scope</p>
+                <div class="sla-value">${sla.totalRuns}</div>
+                <div class="small">${sla.assessmentRuns} assessment / ${sla.correctionRuns} correction</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
       function renderAnalyticsImprovementIdeas() {
         return `
           <div class="card" style="margin-top:10px;">
@@ -1351,6 +1417,25 @@
         const session = getAuthSession(activeMcpBase);
         if (session && session.token) return true;
         const message = `Please login to continue (${contextLabel}) on ${activeMcpBase}.`;
+        if (typeof renderer === "function") {
+          renderer(`<div class="err">${escapeHtml(message)}</div>`);
+        }
+        showAuthPage(`<div class="err">${escapeHtml(message)}</div>`);
+        return false;
+      }
+
+      function ensureLoggedInForServers(serverUrls, contextLabel = "this action", renderer = null) {
+        const targets = Array.isArray(serverUrls) ? serverUrls : [];
+        const missing = targets.filter((url) => {
+          const session = getAuthSession(url);
+          return !(session && session.token);
+        });
+        if (!missing.length) return true;
+        const firstMissing = missing[0];
+        if (firstMissing && firstMissing !== activeMcpBase) {
+          setActiveServer(firstMissing);
+        }
+        const message = `Please login on all selected MCP servers for ${contextLabel}. Missing: ${missing.join(", ")}`;
         if (typeof renderer === "function") {
           renderer(`<div class="err">${escapeHtml(message)}</div>`);
         }
@@ -2258,6 +2343,7 @@
         try {
           if (!ensureLoggedIn("Run Assessment", renderRun)) return;
           const targets = getSelectedRunServers();
+          if (!ensureLoggedInForServers(targets, "Run Assessment", renderRun)) return;
           const args = readArgs();
           const results = await Promise.all(
             targets.map(async (serverUrl) => {
@@ -2302,6 +2388,7 @@
         try {
           if (!ensureLoggedIn("Run Correction", renderRun)) return;
           const targets = getSelectedRunServers();
+          if (!ensureLoggedInForServers(targets, "Run Correction", renderRun)) return;
           const args = readArgs();
           const results = await Promise.all(
             targets.map(async (serverUrl) => {
@@ -2332,6 +2419,7 @@
         try {
           if (!ensureLoggedIn("Workflow History", renderRun)) return;
           const targets = getSelectedRunServers();
+          if (!ensureLoggedInForServers(targets, "Workflow History", renderRun)) return;
           const runResults = await Promise.all(
             targets.map(async (serverUrl) => {
               const data = await mcpCallTo(serverUrl, "get_workflow_runs", { limit: 50 });
@@ -2345,7 +2433,7 @@
           }
           const head = "<tr><th>MCP Server</th><th>Run ID</th><th>Dataset ID</th><th>Type</th><th>Provider</th><th>Process</th><th>Status</th><th>Created At</th><th>Action</th></tr>";
           const body = rows.map(r => `
-            <tr>
+            <tr class="clickable-row" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">
               <td>${escapeHtml(r.__server_url)}</td>
               <td>${escapeHtml(r.run_id)}</td>
               <td>${escapeHtml(r.dataset_id)}</td>
@@ -2419,6 +2507,7 @@
             renderWorkflowAnalytics(`<div class="err">Select at least one MCP server for analytics.</div>`);
             return;
           }
+          if (!ensureLoggedInForServers(targets, "Workflow Analytics", renderWorkflowAnalytics)) return;
           const rangeDays = Number(document.getElementById("analyticsRange")?.value || 0);
 
           const runsByServer = await Promise.all(
@@ -2520,8 +2609,10 @@
 
           const usage = { existing: 0, suggestedApproved: 0, suggestedDeclined: 0 };
           const ruleTrendPoints = [];
+          let correctionsAppliedTotal = 0;
           correctionDetails.filter(Boolean).forEach(({ run, detail }) => {
             const applied = ((detail.result || {}).applied || []);
+            correctionsAppliedTotal += Number((detail.result || {}).corrections_applied || applied.length || 0);
             const point = {
               ts: String(run.created_at || ""),
               label: `${run.dataset_type} @ ${formatIso(run.created_at)}`,
@@ -2555,6 +2646,35 @@
           });
           ruleTrendPoints.sort((a, b) => a.ts.localeCompare(b.ts));
 
+          const qualityValues = trendPoints.map(p => Number(p.value)).filter(v => Number.isFinite(v));
+          const avgQuality = qualityValues.length
+            ? (qualityValues.reduce((acc, v) => acc + v, 0) / qualityValues.length)
+            : 0;
+          const totalViolations = assessmentDetails
+            .filter(Boolean)
+            .reduce((acc, item) => acc + (((item.detail || {}).result || {}).violations || []).length, 0);
+          const generatedSuggestions = assessmentDetails
+            .filter(Boolean)
+            .reduce((acc, item) => acc + (((item.detail || {}).result || {}).suggestions || []).length, 0);
+          const reviewedSuggestions = approvedSet.size + declinedSet.size;
+          const correctionCoverage = totalViolations > 0
+            ? Math.min(100, (correctionsAppliedTotal / totalViolations) * 100)
+            : 100;
+          const suggestionReviewRate = generatedSuggestions > 0
+            ? Math.min(100, (reviewedSuggestions / generatedSuggestions) * 100)
+            : 100;
+          const slaSummary = {
+            avgQuality,
+            correctionCoverage,
+            suggestionReviewRate,
+            targetQuality: 95,
+            targetCorrectionCoverage: 80,
+            targetSuggestionReviewRate: 90,
+            totalRuns: allRuns.length,
+            assessmentRuns: assessmentRuns.length,
+            correctionRuns: correctionRuns.length,
+          };
+
           const progressSummary = {
             totalRuns: allRuns.length,
             datasetLoaded: allRuns.length,
@@ -2565,6 +2685,7 @@
           };
 
           renderWorkflowAnalytics(`
+            ${renderSlaDashboard(slaSummary)}
             ${renderQualityLineChart(trendPoints)}
             ${renderSeverityTrendChart(severityTrendPoints)}
             ${renderRuleApplicationLineChart(ruleTrendPoints)}
@@ -2791,6 +2912,56 @@
           await mcpCall("save_rules_config", { config: payload });
           renderRulesStatus(`<div class="ok">Rules saved successfully to ${escapeHtml(activeMcpBase)}.</div>`);
           await loadSuggestionDecisionViews();
+        } catch (e) {
+          renderError(renderRulesStatus, parseErrorMessage(e));
+        }
+      }
+
+      function summarizeSimulationResult(result, datasetType, serverUrl) {
+        const violations = (result.violations || []).map((v) => ({
+          Record: v.record_index,
+          Rule: v.rule_id || "-",
+          Field: v.field || "-",
+          Severity: v.severity || "-",
+          Reason: v.reason || "-",
+          Value: v.value ?? "",
+        }));
+        return `
+          <div class="ok">
+            <strong>Simulation completed</strong><br/>
+            Server: ${escapeHtml(serverUrl)}<br/>
+            Dataset Type: ${escapeHtml(datasetType)}<br/>
+            Total Checks: ${escapeHtml(result.total_checks ?? 0)}<br/>
+            Failed Checks: ${escapeHtml(result.failed_checks ?? 0)}<br/>
+            Quality Index: ${escapeHtml(result.quality_index ?? "-")}%
+          </div>
+          ${violations.length ? `<h4>Simulated Violations</h4>${renderTable(violations)}` : "<p>No violations found in simulation.</p>"}
+        `;
+      }
+
+      async function simulateRulesFromEditor() {
+        try {
+          if (!ensureLoggedIn("Simulate Rules", renderRulesStatus)) return;
+          const datasetType = getSelectedRulesDatasetType();
+          if (!datasetType) {
+            renderRulesStatus(`<div class="err">Select dataset type before simulation.</div>`);
+            return;
+          }
+          const args = readArgs();
+          const payload = {
+            dataset_type: datasetType,
+            dataset_id: `${args.dataset_id || datasetType}-simulation`,
+            provider: args.provider,
+            config: {
+              data_sources: rulesConfigState.data_sources || [],
+              assessment_rules: rulesConfigState.assessment_rules || {},
+              correction_rules: rulesConfigState.correction_rules || {},
+            },
+            limit: args.limit,
+          };
+          const resp = await mcpCall("simulate_rules", payload);
+          const result = resp.result || {};
+          renderRulesStatus(summarizeSimulationResult(result, datasetType, activeMcpBase));
         } catch (e) {
           renderError(renderRulesStatus, parseErrorMessage(e));
         }

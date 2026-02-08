@@ -13,6 +13,7 @@ class LLMConfig(BaseModel):
     model: str = "gpt-4o-mini"
     endpoint: str | None = None
     api_key_env: str = "OPENAI_API_KEY"
+    api_key: str = ""
     temperature: float = 0.0
 
 
@@ -43,8 +44,28 @@ def load_llm_config() -> LLMConfig:
     if os.path.exists(cfg_path):
         with open(cfg_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-        return LLMConfig(**data.get("llm", {}))
+        cfg = LLMConfig(**data.get("llm", {}))
+        if not cfg.api_key:
+            # Support Docker/K8s secret file path as fallback.
+            secret_path = "/run/secrets/openai_api_key"
+            if os.path.exists(secret_path):
+                with open(secret_path, "r", encoding="utf-8") as f:
+                    cfg.api_key = f.read().strip()
+        return cfg
     return LLMConfig()
+
+
+def to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except Exception:
+        return None
 
 
 def evaluate_rule(rule: Rule, value: Any) -> tuple[bool, str]:
@@ -52,13 +73,14 @@ def evaluate_rule(rule: Rule, value: Any) -> tuple[bool, str]:
         ok = value is not None and value != ""
         return ok, "Value is missing"
     if rule.type == "range":
-        min_v = rule.params.get("min")
-        max_v = rule.params.get("max")
-        if value is None:
+        min_v = to_float(rule.params.get("min"))
+        max_v = to_float(rule.params.get("max"))
+        val = to_float(value)
+        if val is None:
             return False, "Value missing for range check"
-        if min_v is not None and value < min_v:
+        if min_v is not None and val < min_v:
             return False, f"Value {value} is below min {min_v}"
-        if max_v is not None and value > max_v:
+        if max_v is not None and val > max_v:
             return False, f"Value {value} is above max {max_v}"
         return True, ""
     if rule.type == "allowed_values":

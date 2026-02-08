@@ -2,7 +2,7 @@
 
 This repo contains a demo and production-oriented baseline for the Data Quality Engine described in `Presentation Yoda Final v01.pptx`.
 
-Detailed runbook: `s/DQ/docs/run-demo.md`
+Detailed runbook: `/DQ/docs/run-demo.md`
 
 Detailed documentation set:
 
@@ -19,6 +19,34 @@ Detailed documentation set:
 - `deploy/k8s`: enterprise deployment manifests
 - `docker-compose.demo.yml`: local MacBook demo
 - `docker-compose.prod.yml`: production container profile template
+
+## New functionality highlights
+
+- Multi-server workflow execution:
+  - Run assessment/correction on one or many connected MCP servers in one action.
+  - Per-server auth guard checks login on every selected target before execution.
+- DQ Rule simulation mode:
+  - `Simulate Rules` in `DQ Rules Editor` runs assessment using current in-editor rules without saving.
+  - Returns readable simulation summary + violations table.
+- Improved workflow history UX:
+  - Each row in `Workflow Run History` is clickable to open run details.
+- Workflow analytics enhancements:
+  - Quality index trend line.
+  - Rule application trend with distinction between:
+    - existing rules
+    - approved suggested rules
+    - declined suggested rules
+  - Hover tooltip on trend points with rule details.
+  - SLA dashboard cards (quality score, correction coverage, suggestion review rate).
+- MCP Session data-introspection tools:
+  - `show_data_model` (ER-style model view)
+  - `show_dataset`
+  - `show_foreign_key_relations`
+- Auth/admin hardening:
+  - Login/register, per-user rule/server configuration, admin user management.
+  - Write operations require authenticated user.
+  - User-scoped workflow runs and suggestion decisions.
+  - Login attempt throttling controls (`LOGIN_MAX_ATTEMPTS`, `LOGIN_WINDOW_SECONDS`, `LOGIN_LOCK_SECONDS`).
 
 ## Architecture
 
@@ -157,6 +185,13 @@ New auth/admin tools exposed by MCP server:
 - `list_available_mcp_servers`
 - `admin_list_shared_mcp_servers`
 - `admin_save_shared_mcp_servers`
+
+Additional workflow/data tools:
+
+- `simulate_rules`
+- `show_data_model`
+- `show_dataset`
+- `show_foreign_key_relations`
 
 Web UI auth/admin:
 
