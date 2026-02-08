@@ -193,6 +193,36 @@ Additional workflow/data tools:
 - `show_dataset`
 - `show_foreign_key_relations`
 
+Phase-2 governance/automation tools:
+
+- Rule lifecycle:
+  - `list_rule_versions`
+  - `get_rule_version`
+  - `diff_rule_versions`
+  - `rollback_rule_version`
+- Drift and canary:
+  - `refresh_drift_baseline`
+  - `canary_assessment`
+- Scheduling and SLA:
+  - `create_workflow_job`
+  - `list_workflow_jobs`
+  - `toggle_workflow_job`
+  - `run_due_workflow_jobs`
+  - `list_alerts`
+- Compliance and lineage:
+  - `trace_lineage`
+  - `export_audit_pack`
+- Integrations and policy:
+  - `create_ticket_from_run`
+  - `admin_set_team_policy`
+  - `admin_list_team_policies`
+
+Environment flags for integrations:
+
+- `EVENT_WEBHOOK_URL` for event callbacks (`quality_drop_detected`, `data_source_change_detected`, `sla_breach`)
+- `TICKET_WEBHOOK_URL` for external ticket creation webhook
+- `ALERT_QUALITY_THRESHOLD` to auto-create quality alerts
+
 Web UI auth/admin:
 
 - Login/Register page gates access to the application
