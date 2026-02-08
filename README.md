@@ -64,8 +64,8 @@ docker compose -f docker-compose.demo.yml down -v
 
 LLM is configured through YAML mounted into `dq-engine`.
 
-Demo config: `/Users/mozesrahangmetan/Documents/DQ/config/llm.demo.yaml`
-Production config: `/Users/mozesrahangmetan/Documents/DQ/config/llm.prod.yaml`
+Demo config: `/DQ/config/llm.demo.yaml`
+Production config: `/DQ/config/llm.prod.yaml`
 
 Schema:
 
@@ -82,8 +82,8 @@ llm:
 
 DQ rules are configured in YAML and loaded by `mcp-server`:
 
-- Demo: `/Users/mozesrahangmetan/Documents/DQ/config/rules.demo.yaml`
-- Production: `/Users/mozesrahangmetan/Documents/DQ/config/rules.prod.yaml`
+- Demo: `/DQ/config/rules.demo.yaml`
+- Production: `/DQ/config/rules.prod.yaml`
 
 Main sections:
 
@@ -105,13 +105,13 @@ You can also edit rules in the web UI (`DQ Rule Editor`) at `http://localhost:80
 Automated MCP/API smoke test:
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd /DQ
 python3 scripts/test_mcp_flow.py
 ```
 
 Manual UI test checklist:
 
-- `/Users/mozesrahangmetan/Documents/DQ/tests/manual-ui-tests.md`
+- `/DQ/tests/manual-ui-tests.md`
 
 ## Auth Modes (Demo vs Production)
 
@@ -162,7 +162,7 @@ Security/data isolation notes:
 
 ## Enterprise deployment baseline
 
-Use `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s` as baseline:
+Use `/DQ/deploy/k8s` as baseline:
 
 - Namespace isolation
 - Separate deployments for `workflow-client`, `mcp-server`, `dq-engine`
