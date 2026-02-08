@@ -28,6 +28,22 @@ Detailed documentation set:
 4. `dq-engine` evaluates rules and optional LLM-assisted behavior based on config file.
 5. Workflow runs are stored for traceability and governance.
 
+## UI Screenshots
+
+Add screenshots under `docs/images/` with the filenames below:
+
+- `run-workflow.png`
+- `dq-rules-editor.png`
+- `mcp-session.png`
+- `analytics.png`
+
+Then GitHub will render them directly in this README:
+
+![Run Workflow](docs/images/run-workflow.png)
+![DQ Rules Editor](docs/images/dq-rules-editor.png)
+![MCP Session](docs/images/mcp-session.png)
+![Workflow Analytics](docs/images/analytics.png)
+
 ## Demo run (MacBook)
 
 Prerequisites:
@@ -178,3 +194,20 @@ Add in enterprise platform:
 - centralized IAM/RBAC
 - observability stack (logs, traces, metrics)
 - CI/CD with signed images
+
+## Production compose with env file
+
+1. Copy template:
+
+```bash
+cp /Users/mozesrahangmetan/Documents/DQ/.env.prod.example /Users/mozesrahangmetan/Documents/DQ/.env.prod
+```
+
+2. Edit `/Users/mozesrahangmetan/Documents/DQ/.env.prod` with real values.
+
+3. Deploy:
+
+```bash
+docker compose --env-file /Users/mozesrahangmetan/Documents/DQ/.env.prod -f /Users/mozesrahangmetan/Documents/DQ/docker-compose.prod.yml pull
+docker compose --env-file /Users/mozesrahangmetan/Documents/DQ/.env.prod -f /Users/mozesrahangmetan/Documents/DQ/docker-compose.prod.yml up -d
+```
