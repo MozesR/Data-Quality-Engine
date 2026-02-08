@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-client
+  namespace: idqe
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: workflow-client
+  template:
+    metadata:
+      labels:
+        app: workflow-client
+    spec:
+      containers:
+        - name: workflow-client
+          image: your-registry/idqe-workflow-client:1.0.0
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-client
+  namespace: idqe
+spec:
+  selector:
+    app: workflow-client
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: workflow-client
+  namespace: idqe
+spec:
+  rules:
+    - host: idqe.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: workflow-client
+                port:
+                  number: 80

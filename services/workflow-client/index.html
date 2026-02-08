@@ -1,0 +1,2930 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IDQE Workflow MCP Client</title>
+    <style>
+      :root {
+        --bg1: #6f86ff;
+        --bg2: #6a5ac8;
+        --panel: #eef2f7;
+        --ink: #253046;
+        --card: #f8fafc;
+        --line: #cfd8e5;
+        --primary: #2d5fd8;
+        --primary-dark: #244fb6;
+        --warning: #ed9505;
+        --warning-dark: #cf8102;
+        --muted: #60718d;
+        --hero: #2f5597;
+      }
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", "IBM Plex Sans", sans-serif;
+        color: var(--ink);
+        background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      }
+      .wrap {
+        max-width: 1400px;
+        margin: 22px auto 0;
+        background: var(--panel);
+        border-radius: 20px 20px 0 0;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        overflow: hidden;
+      }
+      .hero {
+        background: var(--hero);
+        padding: 36px 40px 40px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 54px;
+        letter-spacing: 0.4px;
+        color: #ffffff;
+        font-weight: 800;
+      }
+      .sub {
+        margin: 0;
+        color: #d6e3ff;
+        font-size: 32px;
+      }
+      .status-bar {
+        padding: 14px 40px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.35);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #31b67a;
+        margin-right: 8px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--line);
+        padding: 0 40px;
+        background: rgba(255, 255, 255, 0.28);
+      }
+      .tab-btn {
+        border: none;
+        border-radius: 0;
+        padding: 18px 34px;
+        background: transparent;
+        color: #5d6f8c;
+        font-weight: 700;
+        font-size: 30px;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+      }
+      .tab-btn.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+        background: rgba(255, 255, 255, 0.52);
+      }
+      .active-server {
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .content {
+        padding: 36px 40px;
+      }
+      h3 {
+        margin: 0 0 10px;
+        font-size: 28px;
+        letter-spacing: 0.2px;
+        color: #222e44;
+      }
+      h4 {
+        margin: 18px 0 8px;
+        font-size: 20px;
+        color: #2c3a55;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        box-shadow: 0 8px 20px rgba(23, 44, 87, 0.05);
+        padding: 24px;
+        margin-bottom: 22px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      button {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 12px 22px;
+        font-weight: 700;
+        font-size: 17px;
+        background: var(--primary);
+        color: #fff;
+        cursor: pointer;
+        margin-right: 8px;
+        margin-bottom: 8px;
+        box-shadow: 0 6px 14px rgba(36, 79, 182, 0.25);
+      }
+      button:hover { filter: brightness(0.97); }
+      button.secondary {
+        background: var(--warning);
+        color: #fff;
+        box-shadow: 0 6px 14px rgba(207, 129, 2, 0.28);
+      }
+      button.ghost {
+        background: #edf1f7;
+        color: #4a5d7a;
+        border-color: #d6deea;
+        box-shadow: none;
+      }
+      button.danger { background: #ef4444; color: #fff; box-shadow: none; }
+      input, select {
+        width: 100%;
+        margin-bottom: 14px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 2px solid #d2dbe8;
+        box-sizing: border-box;
+        font-size: 17px;
+        background: #ffffff;
+      }
+      input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: #8ba9ff;
+        box-shadow: 0 0 0 3px rgba(45, 95, 216, 0.12);
+      }
+      label {
+        font-size: 16px;
+        color: #465874;
+        font-weight: 700;
+      }
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 0 18px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #f7f9fc;
+      }
+      .check-row input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+      }
+      textarea {
+        width: 100%;
+        min-height: 320px;
+        margin-bottom: 0;
+        padding: 20px;
+        border-radius: 0 0 12px 12px;
+        border: none;
+        box-sizing: border-box;
+        font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, monospace;
+        font-size: 17px;
+        background: #1f2d46;
+        color: #dbe8ff;
+      }
+      .editor-shell {
+        border: 1px solid #35496d;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 14px;
+      }
+      .editor-topbar {
+        height: 34px;
+        background: linear-gradient(90deg, #0c1730, #101f41);
+        display: flex;
+        align-items: center;
+        padding-left: 14px;
+        gap: 6px;
+      }
+      .editor-dot { width: 12px; height: 12px; border-radius: 50%; }
+      .dot-red { background: #ff5f57; }
+      .dot-yellow { background: #febc2e; }
+      .dot-green { background: #28c840; }
+      pre {
+        background: #f7f9fc;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        overflow: auto;
+      }
+      .output {
+        min-height: 220px;
+      }
+      .pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #d1fae5;
+        color: #065f46;
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 8px;
+      }
+      .metric {
+        display: inline-block;
+        margin: 8px 16px 8px 0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: #f3f4f6;
+        border: 1px solid var(--line);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        table-layout: fixed;
+      }
+      th, td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 15px;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      th {
+        text-transform: uppercase;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        color: #5e6f89;
+      }
+      .err {
+        color: #b91c1c;
+        background: #fee2e2;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .ok {
+        color: #065f46;
+        background: #d1fae5;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .tab {
+        display: none;
+      }
+      .tab.active {
+        display: block;
+      }
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .modal.active {
+        display: flex;
+      }
+      .modal-card {
+        width: min(760px, 94vw);
+        max-height: 86vh;
+        overflow: auto;
+        background: #fff;
+        border-radius: 12px;
+        padding: 18px;
+      }
+      .small {
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .auth-status {
+        font-size: 14px;
+        color: #4a5f7f;
+      }
+      .auth-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+      }
+      .auth-page {
+        max-width: 980px;
+        margin: 40px auto;
+        padding: 24px;
+      }
+      .auth-shell {
+        background: #eef2f7;
+        border: 1px solid #d4dceb;
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      .auth-hero {
+        background: #2f5597;
+        color: #fff;
+        padding: 28px;
+      }
+      .auth-hero h2 {
+        margin: 0 0 8px;
+        font-size: 38px;
+      }
+      .auth-hero p {
+        margin: 0;
+        color: #d9e4ff;
+        font-size: 18px;
+      }
+      .auth-body {
+        padding: 22px;
+      }
+      .inline-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .inline-controls > * {
+        margin-bottom: 0 !important;
+      }
+      .server-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 12px;
+        background: #fdfefe;
+      }
+      .server-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .server-name {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .server-meta {
+        color: #5e6f89;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .badge-ok { background: #c8f0df; color: #0d6b4e; }
+      .er-wrap {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin-top: 8px;
+      }
+      .er-card {
+        border: 1px solid #d2d9e6;
+        border-radius: 14px;
+        background: #ffffff;
+        overflow: hidden;
+        box-shadow: 0 10px 18px rgba(20, 34, 64, 0.07);
+      }
+      .er-head {
+        background: #261f8f;
+        color: #fff;
+        font-weight: 800;
+        font-size: 20px;
+        padding: 12px 14px;
+      }
+      .er-row {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 9px 14px;
+        border-top: 1px solid #edf1f7;
+      }
+      .er-col-name { font-weight: 700; }
+      .er-col-type { color: #526783; font-weight: 600; }
+      .er-col-key {
+        font-size: 12px;
+        font-weight: 800;
+        color: #24324a;
+        background: #ecf2ff;
+        border: 1px solid #c9d8ff;
+        border-radius: 999px;
+        padding: 2px 8px;
+      }
+      .er-rels {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border: 1px solid #d2d9e6;
+        border-radius: 12px;
+        background: #f8fbff;
+      }
+      .er-rels ul { margin: 8px 0 0; padding-left: 18px; }
+      .er-legend {
+        margin-top: 10px;
+        color: #4f627c;
+        font-size: 14px;
+      }
+      .chart-shell {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 12px;
+        margin-top: 10px;
+      }
+      .chart-title {
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      .chart-legend {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 8px 0 0;
+        font-size: 13px;
+        color: #5b6c87;
+      }
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      .timeline-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .timeline-step {
+        border: 1px solid #d5e0f0;
+        border-radius: 10px;
+        background: #f8fbff;
+        padding: 10px;
+      }
+      .timeline-step h5 {
+        margin: 0 0 6px;
+        font-size: 14px;
+        color: #274472;
+      }
+      .timeline-bar {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        background: #e6edf8;
+        overflow: hidden;
+      }
+      .timeline-fill {
+        height: 100%;
+        background: #2d5fd8;
+      }
+      .chart-tooltip {
+        position: fixed;
+        z-index: 1200;
+        pointer-events: none;
+        display: none;
+        max-width: 360px;
+        background: #10203d;
+        color: #e8f0ff;
+        border: 1px solid #35518a;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+        line-height: 1.35;
+        box-shadow: 0 8px 18px rgba(10, 19, 40, 0.38);
+      }
+      .rule-table input, .rule-table select {
+        margin-bottom: 0;
+        font-size: 14px;
+        padding: 8px 10px;
+      }
+      .rule-table td {
+        padding: 6px;
+      }
+      .rule-actions {
+        display: flex;
+        gap: 6px;
+      }
+      @media (max-width: 900px) {
+        .hero { padding: 24px; }
+        h1 { font-size: 34px; }
+        .sub { font-size: 18px; }
+        h3 { font-size: 24px; }
+        h4 { font-size: 18px; }
+        .toolbar { padding: 0 12px; overflow-x: auto; }
+        .tab-btn { font-size: 18px; padding: 14px 18px; white-space: nowrap; }
+        .content { padding: 18px 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="authPage" class="auth-page">
+      <div class="auth-shell">
+        <div class="auth-hero">
+          <h2>Intelligent Data Quality Engine</h2>
+          <p>Sign in or create an account to access workflows, rules, MCP sessions, and LLM configuration.</p>
+        </div>
+        <div class="auth-body">
+          <div class="auth-grid">
+            <div class="card">
+              <h3>Login</h3>
+              <label>Email</label>
+              <input id="loginEmail" placeholder="you@company.com" />
+              <label>Password</label>
+              <input id="loginPassword" type="password" placeholder="password" />
+              <button onclick="authLogin()">Login</button>
+            </div>
+            <div class="card">
+              <h3>Register</h3>
+              <label>Name</label>
+              <input id="registerName" placeholder="Your Name" />
+              <label>Email</label>
+              <input id="registerEmail" placeholder="you@company.com" />
+              <label>Password</label>
+              <input id="registerPassword" type="password" placeholder="minimum 8 chars" />
+              <button class="ghost" onclick="authRegister()">Register</button>
+            </div>
+          </div>
+          <div id="accountStatus" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="appRoot" class="wrap" style="display:none;">
+      <div class="hero">
+        <h1>Intelligent Data Quality Engine</h1>
+        <p class="sub">Web-based MCP client with workflow execution, DQ rule editing, MCP session management, and LLM configuration.</p>
+      </div>
+
+      <div class="status-bar">
+        <div class="active-server">
+          <span class="status-dot"></span>Active MCP server: <strong id="activeServerLabel">-</strong>
+        </div>
+        <div class="inline-controls">
+          <div id="authStatus" class="auth-status">Not logged in</div>
+          <button id="logoutBtn" class="danger" onclick="authLogout()" style="display:none; margin-bottom:0;">Logout</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="tab-btn active" id="tab-btn-run" onclick="switchTab('run')">Run Workflow</button>
+        <button class="tab-btn" id="tab-btn-rules" onclick="switchTab('rules')">DQ Rules Editor</button>
+        <button class="tab-btn" id="tab-btn-session" onclick="switchTab('session')">MCP Session</button>
+        <button class="tab-btn" id="tab-btn-llm" onclick="switchTab('llm')">LLM Config</button>
+        <button class="tab-btn" id="tab-btn-help" onclick="switchTab('help')">Help</button>
+        <button class="tab-btn" id="tab-btn-admin" onclick="switchTab('admin')" style="display:none;">Admin</button>
+      </div>
+
+      <div class="content">
+
+      <section id="tab-run" class="tab active">
+        <div class="grid">
+          <div class="card">
+            <h3>Run Workflow</h3>
+            <label>Provider</label>
+            <select id="provider">
+              <option>BANK_A</option>
+              <option>BANK_B</option>
+            </select>
+            <label>Dataset Type</label>
+            <select id="datasetType">
+              <option>customer_profile</option>
+              <option>credit_facility</option>
+            </select>
+            <label>Dataset Id</label>
+            <input id="datasetId" value="demo-dataset" />
+            <label>Target MCP Servers (Assessment/Correction)</label>
+            <div id="runServerSelector" class="small" style="border:1px solid #e5e7eb; border-radius:8px; padding:8px; margin-bottom:10px;">
+              No connected servers.
+            </div>
+            <button class="ghost" onclick="selectAllRunServers()">Select All</button>
+            <button class="ghost" onclick="selectActiveRunServer()">Select Active</button>
+            <button class="ghost" onclick="clearRunServers()">Clear</button>
+            <div class="check-row">
+              <input type="checkbox" id="autoCorrectOnSourceChange" />
+              <label for="autoCorrectOnSourceChange" style="margin:0;">Run correction automatically when data source changes</label>
+            </div>
+            <button onclick="previewDataset()">Preview Dataset</button>
+            <button onclick="runAssessment()">Run Assessment</button>
+            <button class="secondary" onclick="runCorrection()">Run Correction</button>
+            <button class="secondary" onclick="getRuns()">Workflow History</button>
+            <button class="ghost" onclick="loadWorkflowAnalytics()">Workflow Analytics</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Workflow Output</h3>
+          <div id="runOutput" class="output">Ready.</div>
+        </div>
+        <div class="card">
+          <h3>Workflow Analytics</h3>
+          <div class="card" style="padding:12px; margin-bottom:10px;">
+            <label>Date Range</label>
+            <select id="analyticsRange" style="max-width:220px;">
+              <option value="0">All time</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+            <label>Analytics MCP Servers</label>
+            <div id="analyticsServerSelector" class="small" style="border:1px solid #e5e7eb; border-radius:8px; padding:8px; margin-bottom:10px;">
+              No connected servers.
+            </div>
+            <button class="ghost" onclick="selectAllAnalyticsServers()">Select All</button>
+            <button class="ghost" onclick="selectRunTargetsForAnalytics()">Use Run Targets</button>
+            <button class="ghost" onclick="clearAnalyticsServers()">Clear</button>
+            <button class="secondary" onclick="loadWorkflowAnalytics()">Refresh Analytics</button>
+          </div>
+          <div id="workflowAnalyticsOutput" class="output">Click <strong>Workflow Analytics</strong> to load trends and correction-rule usage.</div>
+        </div>
+      </section>
+
+      <section id="tab-rules" class="tab">
+        <div class="card">
+          <h3>DQ Rule Editor</h3>
+          <p class="small">Edit rules in a readable form and save changes to the active MCP server.</p>
+          <div class="card" style="padding:14px; margin-bottom:14px;">
+            <label>Dataset Type</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="rulesDatasetType" style="margin-bottom:0;"></select>
+              <input id="newDatasetType" placeholder="new dataset type" style="margin-bottom:0; max-width:260px;" />
+              <button class="ghost" onclick="addDatasetType()">Add Dataset</button>
+            </div>
+          </div>
+
+          <div class="card" style="padding:14px; margin-bottom:14px;">
+            <h4 style="margin-top:0;">Assessment Rules</h4>
+            <div id="assessmentRulesEditor"></div>
+            <button class="ghost" onclick="addAssessmentRule()">Add Assessment Rule</button>
+          </div>
+
+          <div class="card" style="padding:14px; margin-bottom:14px;">
+            <h4 style="margin-top:0;">Correction Rules</h4>
+            <div id="correctionRulesEditor"></div>
+            <button class="ghost" onclick="addCorrectionRule()">Add Correction Rule</button>
+          </div>
+
+          <button onclick="loadRulesEditor()">Load Rules</button>
+          <button class="secondary" onclick="saveRulesEditor()">Save Rules</button>
+          <button class="ghost" onclick="loadSuggestionDecisionViews()">Refresh Suggestion Decisions</button>
+          <div id="rulesStatus" style="margin-top:10px;"></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>Accepted Suggested Rules</h3>
+            <div id="acceptedSuggestionsView">No accepted suggestions yet.</div>
+          </div>
+          <div class="card">
+            <h3>Declined Suggested Rules</h3>
+            <div id="declinedSuggestionsView">No declined suggestions yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-session" class="tab">
+        <div class="grid">
+          <div class="card">
+            <h3>Connect MCP Server</h3>
+            <label>MCP Base URL</label>
+            <input id="serverUrlInput" value="http://localhost:8002" placeholder="http://host:port" />
+            <button onclick="connectServerFromInput()">Connect Server</button>
+            <button class="ghost" onclick="initializeMcp()">Initialize Active</button>
+            <button class="secondary" onclick="listTools()">List Tools (Active)</button>
+            <button class="secondary" onclick="listDataSources()">List Data Sources (Active)</button>
+            <button class="ghost" onclick="showDataModel()">Show Data Model</button>
+            <button class="ghost" onclick="showDataset()">Show Dataset</button>
+            <button class="ghost" onclick="showForeignKeyRelations()">Show FK Relations</button>
+          </div>
+
+          <div class="card">
+            <h3>Connected MCP Servers</h3>
+            <div id="serversList">No servers connected.</div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <h3>My MCP Servers</h3>
+            <p class="small">Create your own MCP server list and save it to your account.</p>
+            <div id="myServersEditor">No personal servers configured.</div>
+            <button class="ghost" onclick="addMyServerRow()">Add Row</button>
+            <button onclick="saveMyServers()">Save My Servers</button>
+            <button class="secondary" onclick="loadAvailableMcpServers()">Refresh Server Catalog</button>
+          </div>
+
+          <div class="card">
+            <h3>Shared MCP Servers</h3>
+            <p class="small">Connect to servers published for all users.</p>
+            <div id="sharedServersList">No shared servers available.</div>
+            <div id="adminSharedServersPanel" style="display:none; margin-top:14px;">
+              <h4>Admin Shared Server Editor</h4>
+              <div id="adminSharedServersEditor">No shared server rows.</div>
+              <button class="ghost" onclick="addAdminSharedServerRow()">Add Shared Row</button>
+              <button class="secondary" onclick="saveAdminSharedServers()">Save Shared Servers</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Session Output</h3>
+          <div id="sessionOutput" class="output">No session actions yet.</div>
+        </div>
+      </section>
+
+      <section id="tab-llm" class="tab">
+        <div class="card">
+          <h3>LLM Configuration</h3>
+          <p class="small">Configure LLM provider/model/API key. When enabled, new rule suggestions are generated during assessment.</p>
+          <label>Provider</label>
+          <select id="llmProvider">
+            <option value="none">none (disabled)</option>
+            <option value="mock">mock</option>
+            <option value="openai">openai</option>
+          </select>
+          <label>Model</label>
+          <input id="llmModel" value="gpt-4o-mini" />
+          <label>Endpoint</label>
+          <input id="llmEndpoint" placeholder="https://api.openai.com/v1" />
+          <label>API Key Env Name</label>
+          <input id="llmApiKeyEnv" value="OPENAI_API_KEY" />
+          <label>API Key</label>
+          <input id="llmApiKey" type="password" placeholder="sk-..." />
+          <label>Temperature</label>
+          <input id="llmTemp" type="number" step="0.1" min="0" max="2" value="0.0" />
+
+          <button onclick="loadLlmConfig()">Load LLM Config</button>
+          <button class="secondary" onclick="saveLlmConfig()">Save LLM Config</button>
+          <div id="llmStatus" style="margin-top:10px;"></div>
+        </div>
+      </section>
+
+      <section id="tab-help" class="tab">
+        <div class="card">
+          <h3>How To Use IDQE</h3>
+          <h4>1. Connect MCP Server</h4>
+          <p>Open <strong>MCP Session</strong>, keep `http://localhost:8002`, click <strong>Connect Server</strong>, then <strong>Initialize Active</strong>.</p>
+
+          <h4>2. Run Data Quality Workflow</h4>
+          <p>Go to <strong>Run Workflow</strong>, select provider + dataset type + dataset ID, choose one or multiple <strong>Target MCP Servers</strong>, then run <strong>Assessment</strong> and <strong>Correction</strong>.</p>
+          <p>If needed, enable <strong>Run correction automatically when data source changes</strong>.</p>
+
+          <h4>3. Review Workflow History</h4>
+          <p>Click <strong>Workflow History</strong>. Use <strong>View Details</strong> on any row to inspect full assessment/correction result.</p>
+
+          <h4>4. Edit DQ Rules</h4>
+          <p>Open <strong>DQ Rules Editor</strong>, click <strong>Load Rules</strong>, edit YAML, then click <strong>Save Rules</strong>.</p>
+          <p>Below the editor, review <strong>Accepted Suggested Rules</strong> and <strong>Declined Suggested Rules</strong>.</p>
+
+          <h4>5. Configure LLM</h4>
+          <p>Open <strong>LLM Config</strong>, set provider/model/endpoint/API key, then click <strong>Save LLM Config</strong>.</p>
+          <p>When LLM is enabled, missing-rule suggestions can appear after assessment.</p>
+
+          <h4>6. Suggestion Queue</h4>
+          <p>In popup, review each suggestion one-by-one:</p>
+          <p><strong>Approve</strong> stores the rule and applies it in next runs. <strong>Decline</strong> rejects it. <strong>Next Suggestion</strong> moves forward.</p>
+
+          <h4>Troubleshooting</h4>
+          <p>If a server call fails, verify services are up and reconnect in <strong>MCP Session</strong>. Then retry the action.</p>
+        </div>
+      </section>
+
+      <section id="tab-admin" class="tab">
+        <div class="card">
+          <h3>Admin User Management</h3>
+          <p class="small">Visible for admin users. Manage role and active state for all users.</p>
+          <button class="ghost" onclick="adminLoadUsers()">Refresh Users</button>
+          <div id="adminUsersView" style="margin-top:10px;">Admin users table not loaded.</div>
+        </div>
+      </section>
+      </div>
+    </div>
+
+    <div id="suggestionModal" class="modal">
+      <div class="modal-card">
+        <h3>LLM Suggested New DQ Rule</h3>
+        <p class="small">Approve to store this rule and apply it in next assessment/correction runs.</p>
+        <div id="suggestionBody"></div>
+        <div style="margin-top:14px;">
+          <button onclick="approveCurrentSuggestion()">Approve Suggestion</button>
+          <button class="danger" onclick="declineCurrentSuggestion()">Decline Suggestion</button>
+          <button class="secondary" onclick="nextSuggestionOrClose()">Next Suggestion</button>
+          <button class="ghost" onclick="closeSuggestionModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="chartTooltip" class="chart-tooltip"></div>
+
+    <script>
+      const defaultMcpBase = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+        ? "http://localhost:8002"
+        : `${window.location.protocol}//${window.location.hostname}:8002`;
+
+      let activeMcpBase = defaultMcpBase;
+      let connectedServers = [];
+      let selectedRunServers = new Set();
+      let suppressSourceChangeHandlers = true;
+      let suggestionQueue = [];
+      let currentSuggestionIndex = -1;
+      let rulesConfigState = { data_sources: [], assessment_rules: {}, correction_rules: {} };
+      let authSessionsByServer = {};
+      let adminUsersCache = [];
+      let myMcpServersState = [];
+      let sharedMcpServersState = [];
+      let adminSharedMcpServersState = [];
+      let analyticsSelectedServers = new Set();
+
+      function switchTab(tab) {
+        if (tab === "llm" && !isLlmTabEnabledForActiveServer()) {
+          tab = "run";
+        }
+        ["run", "rules", "session", "llm", "help", "admin"].forEach(t => {
+          document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
+          document.getElementById(`tab-btn-${t}`).classList.toggle("active", t === tab);
+        });
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function normalizeBaseUrl(url) {
+        return String(url || "").trim().replace(/\/+$/, "");
+      }
+
+      function renderTable(rows) {
+        if (!rows || rows.length === 0) return "<p>No rows found.</p>";
+        const cols = Object.keys(rows[0]);
+        const head = `<tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+        const body = rows.map(row =>
+          `<tr>${cols.map(c => `<td>${escapeHtml(row[c])}</td>`).join("")}</tr>`
+        ).join("");
+        return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function renderRun(html) { document.getElementById("runOutput").innerHTML = html; }
+      function renderWorkflowAnalytics(html) { document.getElementById("workflowAnalyticsOutput").innerHTML = html; }
+      function renderSession(html) { document.getElementById("sessionOutput").innerHTML = html; }
+      function renderRulesStatus(html) { document.getElementById("rulesStatus").innerHTML = html; }
+      function renderLlmStatus(html) { document.getElementById("llmStatus").innerHTML = html; }
+      function renderAcceptedSuggestions(html) { document.getElementById("acceptedSuggestionsView").innerHTML = html; }
+      function renderDeclinedSuggestions(html) { document.getElementById("declinedSuggestionsView").innerHTML = html; }
+      function renderError(htmlTargetFn, message) { htmlTargetFn(`<div class="err"><strong>Error:</strong> ${escapeHtml(message)}</div>`); }
+      function renderSuggestionDetail(html) { document.getElementById("rulesStatus").innerHTML = html; }
+
+      function tipEncode(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function showChartTooltip(evt, html) {
+        const el = document.getElementById("chartTooltip");
+        if (!el) return;
+        el.innerHTML = html || "";
+        el.style.display = "block";
+        moveChartTooltip(evt);
+      }
+
+      function moveChartTooltip(evt) {
+        const el = document.getElementById("chartTooltip");
+        if (!el || el.style.display === "none") return;
+        const x = Number(evt?.clientX || 0) + 14;
+        const y = Number(evt?.clientY || 0) + 14;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+      }
+
+      function hideChartTooltip() {
+        const el = document.getElementById("chartTooltip");
+        if (!el) return;
+        el.style.display = "none";
+      }
+
+      const suggestionDecisionStore = {};
+
+      function summarizeRule(rule) {
+        if (!rule) return "-";
+        const t = rule.type || "rule";
+        const f = rule.field || "?";
+        return `${t} on ${f}`;
+      }
+
+      function shortText(value, max = 80) {
+        const s = String(value || "");
+        if (s.length <= max) return s;
+        return `${s.slice(0, max - 1)}...`;
+      }
+
+      function shortSuggestionId(value) {
+        const s = String(value || "");
+        if (s.length <= 12) return s;
+        return `${s.slice(0, 8)}...`;
+      }
+
+      function formatIso(value) {
+        if (!value) return "-";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleString();
+      }
+
+      function renderSuggestionDecisionTable(rows) {
+        if (!rows || rows.length === 0) return "<p>No items.</p>";
+        const head = "<tr><th>Time</th><th>Dataset</th><th>Suggestion ID</th><th>Reason</th><th>Assessment Rule</th><th>Correction Rule</th><th>Action</th></tr>";
+        const body = rows.map((x, idx) => {
+          const key = `sd-${x.decision || "unknown"}-${x.suggestion_id || "id"}-${idx}`;
+          suggestionDecisionStore[key] = x;
+          return `
+            <tr>
+              <td>${escapeHtml(formatIso(x.created_at))}</td>
+              <td>${escapeHtml(x.dataset_type || "-")}</td>
+              <td>${escapeHtml(shortSuggestionId(x.suggestion_id))}</td>
+              <td>${escapeHtml(shortText((x.suggestion || {}).reason || "-", 120))}</td>
+              <td>${escapeHtml(summarizeRule((x.suggestion || {}).assessment_rule))}</td>
+              <td>${escapeHtml(summarizeRule((x.suggestion || {}).correction_rule))}</td>
+              <td><button class="ghost" onclick="showSuggestionDecisionDetail('${escapeHtml(key)}')">View</button></td>
+            </tr>
+          `;
+        }).join("");
+        return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function showSuggestionDecisionDetail(key) {
+        const item = suggestionDecisionStore[key];
+        if (!item) return;
+        const s = item.suggestion || {};
+        const assessment = s.assessment_rule || {};
+        const correction = s.correction_rule || {};
+        const llm = s.llm || {};
+
+        renderSuggestionDetail(`
+          <div class="ok">
+            <strong>${escapeHtml((item.decision || "").toUpperCase())}</strong> suggestion detail<br/>
+            Dataset: ${escapeHtml(item.dataset_type || "-")}<br/>
+            Suggestion ID: ${escapeHtml(item.suggestion_id || "-")}<br/>
+            Time: ${escapeHtml(formatIso(item.created_at))}
+          </div>
+          <h4>Suggestion Detail</h4>
+          <div class="metric"><strong>Reason:</strong> ${escapeHtml(s.reason || "-")}</div>
+          <div class="metric"><strong>Assessment:</strong> ${escapeHtml((assessment.type || "-") + " on " + (assessment.field || "-"))}</div>
+          <div class="metric"><strong>Correction:</strong> ${escapeHtml(correction.type ? correction.type + " on " + (correction.field || "-") : "none")}</div>
+          <div class="metric"><strong>LLM:</strong> ${escapeHtml((llm.provider || "-") + " / " + (llm.model || "-"))}</div>
+
+          <h4>Assessment Rule</h4>
+          ${renderTable([{
+            "Rule ID": assessment.id || "-",
+            "Field": assessment.field || "-",
+            "Type": assessment.type || "-",
+            "Severity": assessment.severity || "-",
+            "Parameters": assessment.params ? Object.entries(assessment.params).map(([k,v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" | ") : "-",
+          }])}
+
+          <h4>Correction Rule</h4>
+          ${correction.type ? renderTable([{
+            "Field": correction.field || "-",
+            "Type": correction.type || "-",
+            "Default": correction.default ?? "-",
+          }]) : "<p>No correction rule suggested.</p>"}
+        `);
+      }
+
+      function parseErrorMessage(err) {
+        try {
+          const parsed = JSON.parse(err.message || "");
+          if (parsed && parsed.detail) return String(parsed.detail);
+          return err.message || "Unknown error";
+        } catch (_) {
+          return err.message || "Unknown error";
+        }
+      }
+
+      function renderQualityLineChart(points) {
+        if (!points || !points.length) return "<p>No completed assessment runs with quality index found.</p>";
+        const width = 860;
+        const height = 260;
+        const pad = { left: 40, right: 20, top: 14, bottom: 30 };
+        const innerW = width - pad.left - pad.right;
+        const innerH = height - pad.top - pad.bottom;
+        const ys = points.map(p => Number(p.value)).filter(v => Number.isFinite(v));
+        if (!ys.length) return "<p>No numeric quality data available.</p>";
+        const minY = Math.min(0, Math.floor(Math.min(...ys) / 5) * 5);
+        const maxY = Math.max(100, Math.ceil(Math.max(...ys) / 5) * 5);
+        const xAt = (i) => pad.left + ((points.length === 1 ? 0.5 : i / (points.length - 1)) * innerW);
+        const yAt = (v) => pad.top + (maxY === minY ? innerH / 2 : ((maxY - v) / (maxY - minY)) * innerH);
+        const poly = points.map((p, i) => `${xAt(i)},${yAt(Number(p.value))}`).join(" ");
+        const dots = points.map((p, i) => {
+          const cx = xAt(i);
+          const cy = yAt(Number(p.value));
+          const tip = tipEncode(
+            `<strong>${p.label}</strong><br/>Quality Index: ${String(p.value)}%<br/>Server: ${p.server || "-"}<br/>Dataset: ${p.dataset_type || "-"}`
+          );
+          return `<g><circle cx="${cx}" cy="${cy}" r="3.8" fill="#2d5fd8" data-tip="${tip}" onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"/></g>`;
+        }).join("");
+
+        const grid = [0, 25, 50, 75, 100].map(v => {
+          const y = yAt(v);
+          return `<g><line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#e7edf7" stroke-width="1"/><text x="4" y="${y + 4}" fill="#6c7f9d" font-size="12">${v}%</text></g>`;
+        }).join("");
+        return `
+          <div class="chart-shell">
+            <p class="chart-title">Quality Index Trend (Assessment Run History)</p>
+            <svg viewBox="0 0 ${width} ${height}" width="100%" height="260" role="img" aria-label="Quality trend chart">
+              ${grid}
+              <polyline points="${poly}" fill="none" stroke="#2d5fd8" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+              ${dots}
+              <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#b8c5da" stroke-width="1.2"/>
+            </svg>
+            <div class="small">Points: ${points.length} assessments across selected MCP servers.</div>
+          </div>
+        `;
+      }
+
+      function renderCorrectionUsageChart(counts) {
+        const total = counts.existing + counts.suggestedApproved + counts.suggestedDeclined;
+        if (!total) return "<p>No correction applications found in correction run history.</p>";
+        const segments = [
+          { key: "existing", label: "Existing rules applied", value: counts.existing, color: "#2d5fd8" },
+          { key: "suggestedApproved", label: "Suggested rules applied (approved)", value: counts.suggestedApproved, color: "#16a34a" },
+          { key: "suggestedDeclined", label: "Suggested rules applied (declined)", value: counts.suggestedDeclined, color: "#ef4444" },
+        ];
+        let offset = 0;
+        const bars = segments.map(s => {
+          const w = (s.value / total) * 100;
+          const x = offset;
+          offset += w;
+          return `<rect x="${x}" y="0" width="${w}" height="28" fill="${s.color}"><title>${escapeHtml(s.label)}: ${s.value}</title></rect>`;
+        }).join("");
+
+        const rows = segments.map(s => ({
+          Category: s.label,
+          "Applied Count": s.value,
+          Share: `${((s.value / total) * 100).toFixed(1)}%`,
+        }));
+        return `
+          <div class="chart-shell">
+            <p class="chart-title">Correction Rule Usage</p>
+            <svg viewBox="0 0 100 28" width="100%" height="30" role="img" aria-label="Correction usage segments">
+              ${bars}
+            </svg>
+            <div class="chart-legend">
+              ${segments.map(s => `<span class="legend-item"><span class="legend-dot" style="background:${s.color};"></span>${escapeHtml(s.label)}</span>`).join("")}
+            </div>
+            ${renderTable(rows)}
+          </div>
+        `;
+      }
+
+      function renderRuleApplicationLineChart(points) {
+        if (!points || !points.length) return "<p>No correction run details available to build rule-application trend.</p>";
+        const width = 860;
+        const height = 280;
+        const pad = { left: 42, right: 20, top: 14, bottom: 34 };
+        const innerW = width - pad.left - pad.right;
+        const innerH = height - pad.top - pad.bottom;
+        const series = [
+          { key: "existing", label: "Existing rules applied", color: "#2d5fd8" },
+          { key: "suggestedApproved", label: "Suggested approved rules applied", color: "#16a34a" },
+          { key: "suggestedDeclined", label: "Suggested declined rules applied", color: "#ef4444" },
+        ];
+        const allVals = points.flatMap(p => series.map(s => Number(p[s.key] || 0)));
+        const maxY = Math.max(1, ...allVals);
+        const xAt = (i) => pad.left + ((points.length === 1 ? 0.5 : i / (points.length - 1)) * innerW);
+        const yAt = (v) => pad.top + ((maxY - v) / maxY) * innerH;
+
+        const gridTicks = Array.from({ length: 5 }, (_, i) => Math.round((maxY * i) / 4));
+        const grid = gridTicks.map(v => {
+          const y = yAt(v);
+          return `<g><line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#e7edf7" stroke-width="1"/><text x="4" y="${y + 4}" fill="#6c7f9d" font-size="12">${v}</text></g>`;
+        }).join("");
+
+        const lines = series.map(s => {
+          const poly = points.map((p, i) => `${xAt(i)},${yAt(Number(p[s.key] || 0))}`).join(" ");
+          return `<polyline points="${poly}" fill="none" stroke="${s.color}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`;
+        }).join("");
+
+        const pointDots = series.map(s =>
+          points.map((p, i) => {
+            const cx = xAt(i);
+            const cy = yAt(Number(p[s.key] || 0));
+            const detailLines = [
+              `<strong>${p.label}</strong>`,
+              `Server: ${p.server || "-"}`,
+              `Dataset: ${p.dataset_type || "-"}`,
+              `${s.label}: ${p[s.key] || 0}`,
+              `Existing: ${p.existing || 0}`,
+              `Suggested approved: ${p.suggestedApproved || 0}`,
+              `Suggested declined: ${p.suggestedDeclined || 0}`,
+              `Existing rules: ${(p.existingRules || []).slice(0, 5).join(", ") || "-"}`,
+              `Approved-suggested rules: ${(p.suggestedApprovedRules || []).slice(0, 5).join(", ") || "-"}`,
+              `Declined-suggested rules: ${(p.suggestedDeclinedRules || []).slice(0, 5).join(", ") || "-"}`,
+            ];
+            const tip = tipEncode(detailLines.join("<br/>"));
+            return `<circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}" data-tip="${tip}" onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"/>`;
+          }).join("")
+        ).join("");
+
+        return `
+          <div class="chart-shell">
+            <p class="chart-title">Rule Application Trend (Correction Runs)</p>
+            <svg viewBox="0 0 ${width} ${height}" width="100%" height="280" role="img" aria-label="Rule application trend chart">
+              ${grid}
+              ${lines}
+              ${pointDots}
+              <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#b8c5da" stroke-width="1.2"/>
+            </svg>
+            <div class="chart-legend">
+              ${series.map(s => `<span class="legend-item"><span class="legend-dot" style="background:${s.color};"></span>${escapeHtml(s.label)}</span>`).join("")}
+            </div>
+            <div class="small">Hover points to see which rules were applied and whether they came from existing, approved suggestions, or declined suggestions.</div>
+          </div>
+        `;
+      }
+
+      function renderSeverityTrendChart(points) {
+        if (!points || !points.length) return "<p>No assessment violation details available for severity trend.</p>";
+        const width = 860;
+        const height = 280;
+        const pad = { left: 42, right: 20, top: 14, bottom: 34 };
+        const innerW = width - pad.left - pad.right;
+        const innerH = height - pad.top - pad.bottom;
+        const series = [
+          { key: "high", label: "High severity", color: "#ef4444" },
+          { key: "medium", label: "Medium severity", color: "#f59e0b" },
+          { key: "low", label: "Low severity", color: "#2d5fd8" },
+        ];
+        const allVals = points.flatMap(p => series.map(s => Number(p[s.key] || 0)));
+        const maxY = Math.max(1, ...allVals);
+        const xAt = (i) => pad.left + ((points.length === 1 ? 0.5 : i / (points.length - 1)) * innerW);
+        const yAt = (v) => pad.top + ((maxY - v) / maxY) * innerH;
+
+        const gridTicks = Array.from({ length: 5 }, (_, i) => Math.round((maxY * i) / 4));
+        const grid = gridTicks.map(v => {
+          const y = yAt(v);
+          return `<g><line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#e7edf7" stroke-width="1"/><text x="4" y="${y + 4}" fill="#6c7f9d" font-size="12">${v}</text></g>`;
+        }).join("");
+
+        const lines = series.map(s => {
+          const poly = points.map((p, i) => `${xAt(i)},${yAt(Number(p[s.key] || 0))}`).join(" ");
+          return `<polyline points="${poly}" fill="none" stroke="${s.color}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`;
+        }).join("");
+
+        const pointDots = series.map(s =>
+          points.map((p, i) => {
+            const cx = xAt(i);
+            const cy = yAt(Number(p[s.key] || 0));
+            const tip = tipEncode(
+              [
+                `<strong>${p.label}</strong>`,
+                `Server: ${p.server || "-"}`,
+                `Dataset: ${p.dataset_type || "-"}`,
+                `${s.label}: ${p[s.key] || 0}`,
+                `High: ${p.high || 0} | Medium: ${p.medium || 0} | Low: ${p.low || 0}`,
+                `Sample violated rules: ${(p.ruleIds || []).slice(0, 8).join(", ") || "-"}`,
+              ].join("<br/>")
+            );
+            return `<circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}" data-tip="${tip}" onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"/>`;
+          }).join("")
+        ).join("");
+
+        return `
+          <div class="chart-shell">
+            <p class="chart-title">Violation Severity Trend (Assessment Runs)</p>
+            <svg viewBox="0 0 ${width} ${height}" width="100%" height="280" role="img" aria-label="Severity trend chart">
+              ${grid}
+              ${lines}
+              ${pointDots}
+              <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#b8c5da" stroke-width="1.2"/>
+            </svg>
+            <div class="chart-legend">
+              ${series.map(s => `<span class="legend-item"><span class="legend-dot" style="background:${s.color};"></span>${escapeHtml(s.label)}</span>`).join("")}
+            </div>
+            <div class="small">Hover points for per-run severity breakdown and violated-rule samples.</div>
+          </div>
+        `;
+      }
+
+      function renderWorkflowProgressTimeline(summary) {
+        const stages = [
+          { label: "Dataset Loaded", value: summary.datasetLoaded, total: summary.totalRuns },
+          { label: "Assessment Completed", value: summary.assessmentCompleted, total: summary.totalRuns },
+          { label: "Violations Detected", value: summary.violationsDetected, total: summary.assessmentCompleted },
+          { label: "Suggestions Generated", value: summary.suggestionsGenerated, total: summary.assessmentCompleted },
+          { label: "Correction Completed", value: summary.correctionCompleted, total: summary.totalRuns },
+        ];
+        const cards = stages.map((s) => {
+          const denom = s.total > 0 ? s.total : 1;
+          const pct = Math.max(0, Math.min(100, Math.round((s.value / denom) * 100)));
+          return `
+            <div class="timeline-step">
+              <h5>${escapeHtml(s.label)}</h5>
+              <div class="small" style="margin-bottom:6px;">${s.value} / ${s.total || 0} (${pct}%)</div>
+              <div class="timeline-bar"><div class="timeline-fill" style="width:${pct}%;"></div></div>
+            </div>
+          `;
+        }).join("");
+        return `
+          <div class="chart-shell">
+            <p class="chart-title">DQ Workflow Progress Timeline</p>
+            <div class="timeline-grid">${cards}</div>
+            <div class="small" style="margin-top:8px;">Shows completion and progression signals for selected servers and date range.</div>
+          </div>
+        `;
+      }
+
+      function renderAnalyticsImprovementIdeas() {
+        return `
+          <div class="card" style="margin-top:10px;">
+            <h4>Improvement Ideas For DQ Progress Visibility</h4>
+            <ul>
+              <li>Add step progress per run: load dataset, validate rules, score quality, generate suggestions, apply corrections.</li>
+              <li>Show pass/fail counters by rule severity (high/medium/low) and trend each over time.</li>
+              <li>Track MTTR for data quality issues: first detected timestamp vs first corrected timestamp.</li>
+              <li>Add drill-down from each chart point to violating records and applied correction records.</li>
+              <li>Add provider and dataset-type filters so teams can isolate their domain performance quickly.</li>
+            </ul>
+          </div>
+        `;
+      }
+
+      function loadAuthSessions() {
+        try {
+          const raw = sessionStorage.getItem("idqe_auth_sessions");
+          if (raw) {
+            authSessionsByServer = JSON.parse(raw);
+          } else {
+            const legacy = localStorage.getItem("idqe_auth_sessions");
+            authSessionsByServer = legacy ? JSON.parse(legacy) : {};
+            if (legacy) {
+              sessionStorage.setItem("idqe_auth_sessions", legacy);
+              localStorage.removeItem("idqe_auth_sessions");
+            }
+          }
+          if (!authSessionsByServer || typeof authSessionsByServer !== "object") authSessionsByServer = {};
+        } catch (_) {
+          authSessionsByServer = {};
+        }
+      }
+
+      function saveAuthSessions() {
+        try {
+          sessionStorage.setItem("idqe_auth_sessions", JSON.stringify(authSessionsByServer));
+          localStorage.removeItem("idqe_auth_sessions");
+        } catch (_) {}
+      }
+
+      function getAuthSession(serverUrl = activeMcpBase) {
+        return authSessionsByServer[serverUrl] || null;
+      }
+
+      function setAuthSession(serverUrl, session) {
+        authSessionsByServer[serverUrl] = session;
+        saveAuthSessions();
+        refreshAuthStatus();
+      }
+
+      function clearAuthSession(serverUrl = activeMcpBase) {
+        delete authSessionsByServer[serverUrl];
+        saveAuthSessions();
+        refreshAuthStatus();
+      }
+
+      function refreshAuthStatus() {
+        const session = getAuthSession(activeMcpBase);
+        const el = document.getElementById("authStatus");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const adminTabBtn = document.getElementById("tab-btn-admin");
+        const adminSharedPanel = document.getElementById("adminSharedServersPanel");
+        if (!session || !session.user) {
+          el.textContent = `Not logged in (${activeMcpBase})`;
+          if (logoutBtn) logoutBtn.style.display = "none";
+          if (adminTabBtn) adminTabBtn.style.display = "none";
+          if (adminSharedPanel) adminSharedPanel.style.display = "none";
+          return;
+        }
+        const user = session.user;
+        el.textContent = `${user.name} (${user.role}) @ ${activeMcpBase}`;
+        if (logoutBtn) logoutBtn.style.display = "inline-block";
+        if (adminTabBtn) adminTabBtn.style.display = (user.role === "admin") ? "inline-block" : "none";
+        if (adminSharedPanel) adminSharedPanel.style.display = (user.role === "admin") ? "block" : "none";
+        if (user.role !== "admin") {
+          const adminTab = document.getElementById("tab-admin");
+          if (adminTab && adminTab.classList.contains("active")) switchTab("run");
+        }
+      }
+
+      function isAppVisible() {
+        return document.getElementById("appRoot").style.display !== "none";
+      }
+
+      function showAuthPage(messageHtml = "") {
+        document.getElementById("authPage").style.display = "block";
+        document.getElementById("appRoot").style.display = "none";
+        if (messageHtml) {
+          document.getElementById("accountStatus").innerHTML = messageHtml;
+        }
+      }
+
+      function showAppPage() {
+        document.getElementById("authPage").style.display = "none";
+        document.getElementById("appRoot").style.display = "block";
+        switchTab("run");
+        refreshAuthStatus();
+      }
+
+      function ensureLoggedIn(contextLabel = "this action", renderer = null) {
+        const session = getAuthSession(activeMcpBase);
+        if (session && session.token) return true;
+        const message = `Please login to continue (${contextLabel}) on ${activeMcpBase}.`;
+        if (typeof renderer === "function") {
+          renderer(`<div class="err">${escapeHtml(message)}</div>`);
+        }
+        showAuthPage(`<div class="err">${escapeHtml(message)}</div>`);
+        return false;
+      }
+
+      function updateActiveServerLabel() {
+        document.getElementById("activeServerLabel").textContent = activeMcpBase;
+      }
+
+      function upsertConnectedServer(server) {
+        const idx = connectedServers.findIndex(s => s.url === server.url);
+        if (idx >= 0) connectedServers[idx] = server;
+        else connectedServers.push(server);
+        if (!selectedRunServers.size) selectedRunServers.add(server.url);
+        renderConnectedServers();
+      }
+
+      function setActiveServer(url) {
+        activeMcpBase = normalizeBaseUrl(url);
+        updateActiveServerLabel();
+        refreshAuthStatus();
+        renderConnectedServers();
+        applyUiCapabilitiesForActiveServer();
+        const session = getAuthSession(activeMcpBase);
+        if (session && session.token) {
+          loadAvailableMcpServers().catch(() => {});
+          loadSuggestionDecisionViews().catch(() => {});
+          loadRulesEditor().catch(() => {});
+          authMe({ silent: true }).catch(() => {});
+          adminLoadUsers().catch(() => {});
+        }
+      }
+
+      function renderRunServerSelector() {
+        const el = document.getElementById("runServerSelector");
+        if (!connectedServers.length) {
+          el.innerHTML = "No connected servers.";
+          return;
+        }
+        const rows = connectedServers.map(s => {
+          const checked = selectedRunServers.has(s.url) ? "checked" : "";
+          return `
+            <label style="display:block; margin:4px 0;">
+              <input type="checkbox" ${checked} onchange="toggleRunServer('${escapeHtml(s.url)}', this.checked)" />
+              ${escapeHtml(s.name || "mcp-server")} (${escapeHtml(s.url)})
+            </label>
+          `;
+        }).join("");
+        el.innerHTML = rows;
+      }
+
+      function toggleRunServer(url, isChecked) {
+        if (isChecked) selectedRunServers.add(url);
+        else selectedRunServers.delete(url);
+      }
+
+      function selectAllRunServers() {
+        connectedServers.forEach(s => selectedRunServers.add(s.url));
+        renderRunServerSelector();
+      }
+
+      function selectActiveRunServer() {
+        selectedRunServers = new Set([activeMcpBase]);
+        renderRunServerSelector();
+      }
+
+      function clearRunServers() {
+        selectedRunServers.clear();
+        renderRunServerSelector();
+      }
+
+      function getSelectedRunServers() {
+        const valid = connectedServers.map(s => s.url).filter(u => selectedRunServers.has(u));
+        if (valid.length > 0) return valid;
+        return [activeMcpBase];
+      }
+
+      function renderConnectedServers() {
+        const el = document.getElementById("serversList");
+        if (!connectedServers.length) {
+          el.innerHTML = "No servers connected.";
+          return;
+        }
+        el.innerHTML = connectedServers.map(s => {
+          const isActive = s.url === activeMcpBase;
+          const action = isActive
+            ? `<button>Active</button>`
+            : `<button class="ghost" onclick="setActiveServer('${escapeHtml(s.url)}')">Use</button>`;
+          return `
+            <div class="server-card">
+              <div class="server-card-head">
+                <div class="server-name">${escapeHtml(s.name || "unknown")}</div>
+                <div>${action}</div>
+              </div>
+              <div class="server-meta">URL<br/><strong>${escapeHtml(s.url)}</strong></div>
+              <div class="server-meta">VERSION<br/><strong>${escapeHtml(s.version || "-")}</strong></div>
+              <div class="server-meta">STATUS<br/><span class="badge badge-ok">${escapeHtml(s.status || "connected")}</span></div>
+              <div class="server-meta">UPDATED<br/><strong>${escapeHtml(s.updated_at || "-")}</strong></div>
+            </div>
+          `;
+        }).join("");
+        renderRunServerSelector();
+        renderAnalyticsServerSelector();
+        applyUiCapabilitiesForActiveServer();
+      }
+
+      function getActiveServerMeta() {
+        return connectedServers.find(s => s.url === activeMcpBase) || null;
+      }
+
+      function isLlmTabEnabledForActiveServer() {
+        const meta = getActiveServerMeta();
+        if (!meta) return true;
+        return meta.llm_tab_enabled !== false;
+      }
+
+      function applyUiCapabilitiesForActiveServer() {
+        const llmBtn = document.getElementById("tab-btn-llm");
+        const enabled = isLlmTabEnabledForActiveServer();
+        if (llmBtn) llmBtn.style.display = enabled ? "inline-block" : "none";
+        if (!enabled && document.getElementById("tab-llm").classList.contains("active")) {
+          switchTab("run");
+        }
+      }
+
+      function renderAnalyticsServerSelector() {
+        const el = document.getElementById("analyticsServerSelector");
+        if (!el) return;
+        if (!connectedServers.length) {
+          el.innerHTML = "No connected servers.";
+          return;
+        }
+        if (!analyticsSelectedServers.size) {
+          getSelectedRunServers().forEach(u => analyticsSelectedServers.add(u));
+        }
+        const rows = connectedServers.map(s => {
+          const checked = analyticsSelectedServers.has(s.url) ? "checked" : "";
+          return `
+            <label style="display:block; margin:4px 0;">
+              <input type="checkbox" ${checked} onchange="toggleAnalyticsServer('${escapeHtml(s.url)}', this.checked)" />
+              ${escapeHtml(s.name || "mcp-server")} (${escapeHtml(s.url)})
+            </label>
+          `;
+        }).join("");
+        el.innerHTML = rows;
+      }
+
+      function toggleAnalyticsServer(url, isChecked) {
+        if (isChecked) analyticsSelectedServers.add(url);
+        else analyticsSelectedServers.delete(url);
+      }
+
+      function selectAllAnalyticsServers() {
+        connectedServers.forEach(s => analyticsSelectedServers.add(s.url));
+        renderAnalyticsServerSelector();
+      }
+
+      function selectRunTargetsForAnalytics() {
+        analyticsSelectedServers = new Set(getSelectedRunServers());
+        renderAnalyticsServerSelector();
+      }
+
+      function clearAnalyticsServers() {
+        analyticsSelectedServers.clear();
+        renderAnalyticsServerSelector();
+      }
+
+      function getAnalyticsSelectedServers() {
+        const valid = connectedServers.map(s => s.url).filter(u => analyticsSelectedServers.has(u));
+        if (valid.length > 0) return valid;
+        return [];
+      }
+
+      function includeRunByRange(isoDate, rangeDays) {
+        if (!rangeDays || rangeDays <= 0) return true;
+        const ts = Date.parse(String(isoDate || ""));
+        if (!Number.isFinite(ts)) return false;
+        return (Date.now() - ts) <= (rangeDays * 24 * 60 * 60 * 1000);
+      }
+
+      function normalizeServerEntry(item, source = "user") {
+        if (!item || typeof item !== "object") return null;
+        const baseUrl = normalizeBaseUrl(item.base_url || item.url || "");
+        if (!baseUrl) return null;
+        return {
+          name: String(item.name || "mcp-server").trim() || "mcp-server",
+          base_url: baseUrl,
+          is_active: item.is_active !== false,
+          source: String(item.source || source),
+        };
+      }
+
+      function renderMyServersEditor() {
+        const el = document.getElementById("myServersEditor");
+        if (!myMcpServersState.length) {
+          el.innerHTML = "<p>No personal servers configured.</p>";
+          return;
+        }
+        const head = "<tr><th>Name</th><th>Base URL</th><th>Action</th></tr>";
+        const body = myMcpServersState.map((s, idx) => `
+          <tr>
+            <td><input value="${escapeHtml(s.name || "")}" onchange="updateMyServerField(${idx}, 'name', this.value)" /></td>
+            <td><input value="${escapeHtml(s.base_url || "")}" onchange="updateMyServerField(${idx}, 'base_url', this.value)" /></td>
+            <td>
+              <button class="ghost" onclick="connectMyServer(${idx})">Connect</button>
+              <button class="ghost" onclick="removeMyServerRow(${idx})">Delete</button>
+            </td>
+          </tr>
+        `).join("");
+        el.innerHTML = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function updateMyServerField(index, key, value) {
+        if (!myMcpServersState[index]) return;
+        if (key === "base_url") {
+          myMcpServersState[index][key] = normalizeBaseUrl(value);
+        } else {
+          myMcpServersState[index][key] = String(value || "");
+        }
+      }
+
+      function addMyServerRow() {
+        myMcpServersState.push({ name: "my-mcp-server", base_url: "", is_active: true, source: "user" });
+        renderMyServersEditor();
+      }
+
+      function removeMyServerRow(index) {
+        myMcpServersState.splice(index, 1);
+        renderMyServersEditor();
+      }
+
+      async function connectMyServer(index) {
+        try {
+          if (!ensureLoggedIn("Connect My MCP Server", renderSession)) return;
+          const row = myMcpServersState[index];
+          const normalized = normalizeServerEntry(row, "user");
+          if (!normalized) {
+            renderSession(`<div class="err">Please provide a valid server URL (http/https).</div>`);
+            return;
+          }
+          const data = await connectServer(normalized.base_url);
+          renderSession(`<div class="ok"><strong>Connected:</strong> ${escapeHtml(data.server)} at ${escapeHtml(normalized.base_url)}</div>`);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      function renderSharedServersList() {
+        const el = document.getElementById("sharedServersList");
+        if (!sharedMcpServersState.length) {
+          el.innerHTML = "<p>No shared servers available.</p>";
+          return;
+        }
+        const head = "<tr><th>Name</th><th>Base URL</th><th>Status</th><th>Action</th></tr>";
+        const body = sharedMcpServersState.map((s, idx) => {
+          const isConnected = connectedServers.some(c => c.url === s.base_url);
+          return `
+            <tr>
+              <td>${escapeHtml(s.name || "shared-server")}</td>
+              <td>${escapeHtml(s.base_url || "-")}</td>
+              <td>${s.is_active ? '<span class="pill">active</span>' : '<span class="small">inactive</span>'}</td>
+              <td>
+                <button class="ghost" onclick="connectSharedServer(${idx})">${isConnected ? "Reconnect" : "Connect"}</button>
+                <button class="ghost" onclick="useSharedServer(${idx})">Use</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
+        el.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      async function connectSharedServer(index) {
+        try {
+          if (!ensureLoggedIn("Connect Shared MCP Server", renderSession)) return;
+          const row = sharedMcpServersState[index];
+          const normalized = normalizeServerEntry(row, "shared");
+          if (!normalized) {
+            renderSession(`<div class="err">Invalid shared server entry.</div>`);
+            return;
+          }
+          const data = await connectServer(normalized.base_url);
+          renderSession(`<div class="ok"><strong>Connected:</strong> ${escapeHtml(data.server)} at ${escapeHtml(normalized.base_url)}</div>`);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      function useSharedServer(index) {
+        const row = sharedMcpServersState[index];
+        const normalized = normalizeServerEntry(row, "shared");
+        if (!normalized) return;
+        const existing = connectedServers.some(c => c.url === normalized.base_url);
+        if (!existing) {
+          renderSession(`<div class="err">Server not connected yet. Click Connect first.</div>`);
+          return;
+        }
+        setActiveServer(normalized.base_url);
+      }
+
+      function renderAdminSharedServersEditor() {
+        const el = document.getElementById("adminSharedServersEditor");
+        if (!el) return;
+        if (!adminSharedMcpServersState.length) {
+          el.innerHTML = "<p>No shared server rows.</p>";
+          return;
+        }
+        const head = "<tr><th>Name</th><th>Base URL</th><th>Active</th><th>Action</th></tr>";
+        const body = adminSharedMcpServersState.map((s, idx) => `
+          <tr>
+            <td><input value="${escapeHtml(s.name || "")}" onchange="updateAdminSharedServerField(${idx}, 'name', this.value)" /></td>
+            <td><input value="${escapeHtml(s.base_url || "")}" onchange="updateAdminSharedServerField(${idx}, 'base_url', this.value)" /></td>
+            <td><input type="checkbox" ${s.is_active ? "checked" : ""} onchange="updateAdminSharedServerField(${idx}, 'is_active', this.checked)" /></td>
+            <td><button class="ghost" onclick="removeAdminSharedServerRow(${idx})">Delete</button></td>
+          </tr>
+        `).join("");
+        el.innerHTML = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function updateAdminSharedServerField(index, key, value) {
+        if (!adminSharedMcpServersState[index]) return;
+        if (key === "base_url") {
+          adminSharedMcpServersState[index][key] = normalizeBaseUrl(value);
+          return;
+        }
+        if (key === "is_active") {
+          adminSharedMcpServersState[index][key] = Boolean(value);
+          return;
+        }
+        adminSharedMcpServersState[index][key] = String(value || "");
+      }
+
+      function addAdminSharedServerRow() {
+        adminSharedMcpServersState.push({ name: "shared-mcp-server", base_url: "", is_active: true, source: "shared" });
+        renderAdminSharedServersEditor();
+      }
+
+      function removeAdminSharedServerRow(index) {
+        adminSharedMcpServersState.splice(index, 1);
+        renderAdminSharedServersEditor();
+      }
+
+      async function saveAdminSharedServers() {
+        try {
+          if (!ensureLoggedIn("Save Shared MCP Servers", renderSession)) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            renderSession(`<div class="err">Admin role required to save shared MCP servers.</div>`);
+            return;
+          }
+          const payload = adminSharedMcpServersState
+            .map(s => normalizeServerEntry(s, "shared"))
+            .filter(Boolean)
+            .map(s => ({ name: s.name, base_url: s.base_url, is_active: s.is_active !== false }));
+          await mcpCall("admin_save_shared_mcp_servers", { servers: payload });
+          renderSession(`<div class="ok">Shared MCP server catalog saved.</div>`);
+          await loadAvailableMcpServers();
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function saveMyServers() {
+        try {
+          if (!ensureLoggedIn("Save My MCP Servers", renderSession)) return;
+          const payload = myMcpServersState
+            .map(s => normalizeServerEntry(s, "user"))
+            .filter(Boolean)
+            .map(s => ({ name: s.name, base_url: s.base_url }));
+          await mcpCall("save_user_mcp_servers", { servers: payload });
+          renderSession(`<div class="ok">Your MCP server catalog was saved.</div>`);
+          await loadAvailableMcpServers();
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function loadAvailableMcpServers() {
+        try {
+          if (!ensureLoggedIn("Load MCP Server Catalog", renderSession)) return;
+          const personalResp = await mcpCall("get_user_mcp_servers", {});
+          myMcpServersState = ((personalResp.result || {}).servers || [])
+            .map(s => normalizeServerEntry(s, "user"))
+            .filter(Boolean);
+          renderMyServersEditor();
+
+          const availableResp = await mcpCall("list_available_mcp_servers", {});
+          const all = ((availableResp.result || {}).servers || [])
+            .map(s => normalizeServerEntry(s, s.source || "shared"))
+            .filter(Boolean);
+          sharedMcpServersState = all.filter(s => s.source === "shared" && s.is_active !== false);
+          renderSharedServersList();
+
+          const session = getAuthSession(activeMcpBase);
+          if (session && session.user && session.user.role === "admin") {
+            try {
+              const adminResp = await mcpCall("admin_list_shared_mcp_servers", {});
+              adminSharedMcpServersState = ((adminResp.result || {}).servers || [])
+                .map(s => normalizeServerEntry(s, "shared"))
+                .filter(Boolean)
+                .map(s => ({ ...s, is_active: s.is_active !== false }));
+              renderAdminSharedServersEditor();
+            } catch (_) {
+              adminSharedMcpServersState = [];
+              renderAdminSharedServersEditor();
+            }
+          } else {
+            adminSharedMcpServersState = [];
+            renderAdminSharedServersEditor();
+          }
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function mcpCall(tool, argumentsObj = {}) {
+        return mcpCallTo(activeMcpBase, tool, argumentsObj);
+      }
+
+      async function mcpCallTo(baseUrl, tool, argumentsObj = {}) {
+        const headers = { "Content-Type": "application/json" };
+        const session = getAuthSession(baseUrl);
+        if (session && session.token) headers["Authorization"] = `Bearer ${session.token}`;
+        const res = await fetch(`${baseUrl}/mcp/call`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ tool, arguments: argumentsObj }),
+        });
+        const data = await res.json();
+        if (res.status === 401 && session) {
+          clearAuthSession(baseUrl);
+          if (baseUrl === activeMcpBase && isAppVisible()) {
+            showAuthPage(`<div class="err">Session expired on ${escapeHtml(baseUrl)}. Please login again.</div>`);
+          }
+        }
+        if (!res.ok) throw new Error(JSON.stringify(data));
+        return data;
+      }
+
+      async function connectServer(url) {
+        const base = normalizeBaseUrl(url);
+        const res = await fetch(`${base}/mcp/initialize`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(typeof data === "object" ? JSON.stringify(data) : String(data));
+
+        upsertConnectedServer({
+          url: base,
+          name: data.server || "dq-workflow-mcp",
+          version: data.version || "-",
+          status: "connected",
+          llm_tab_enabled: (data.ui || {}).llm_tab_enabled !== false,
+          updated_at: new Date().toLocaleString(),
+        });
+        setActiveServer(base);
+        return data;
+      }
+
+      async function connectServerFromInput() {
+        try {
+          const url = document.getElementById("serverUrlInput").value;
+          const data = await connectServer(url);
+          renderSession(`<div class="ok"><strong>Connected:</strong> ${escapeHtml(data.server)} at ${escapeHtml(normalizeBaseUrl(url))}</div>`);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function authRegister() {
+        try {
+          const serverUrl = normalizeBaseUrl(activeMcpBase || defaultMcpBase);
+          await connectServer(serverUrl);
+          const name = document.getElementById("registerName").value.trim();
+          const email = document.getElementById("registerEmail").value.trim();
+          const password = document.getElementById("registerPassword").value;
+          await mcpCallTo(serverUrl, "auth_register", { name, email, password });
+          document.getElementById("accountStatus").innerHTML = `<div class="ok">Account created on ${escapeHtml(serverUrl)}. You can now login.</div>`;
+        } catch (e) {
+          renderError((html) => { document.getElementById("accountStatus").innerHTML = html; }, parseErrorMessage(e));
+        }
+      }
+
+      async function authLogin() {
+        try {
+          const serverUrl = normalizeBaseUrl(activeMcpBase || defaultMcpBase);
+          await connectServer(serverUrl);
+          const email = document.getElementById("loginEmail").value.trim();
+          const password = document.getElementById("loginPassword").value;
+          const resp = await mcpCallTo(serverUrl, "auth_login", { email, password });
+          const result = resp.result || {};
+          setAuthSession(serverUrl, {
+            token: result.access_token,
+            user: result.user || {},
+          });
+          setActiveServer(serverUrl);
+          document.getElementById("accountStatus").innerHTML = `<div class="ok">Logged in as ${escapeHtml((result.user || {}).email || "")}</div>`;
+          await authMe({ silent: true });
+          await adminLoadUsers();
+          showAppPage();
+          await loadAppData();
+        } catch (e) {
+          renderError((html) => { document.getElementById("accountStatus").innerHTML = html; }, parseErrorMessage(e));
+        }
+      }
+
+      async function authMe(options = {}) {
+        const opts = {
+          silent: false,
+          serverUrl: activeMcpBase,
+          ...options,
+        };
+        try {
+          const serverUrl = normalizeBaseUrl(opts.serverUrl);
+          const resp = await mcpCallTo(serverUrl, "auth_me", {});
+          const result = resp.result || {};
+          if (!result.authenticated) {
+            clearAuthSession(serverUrl);
+            if (!opts.silent) {
+              document.getElementById("accountStatus").innerHTML = `<div class="err">Not authenticated on ${escapeHtml(serverUrl)}</div>`;
+            }
+            return false;
+          }
+          const session = getAuthSession(serverUrl) || {};
+          setAuthSession(serverUrl, {
+            token: session.token || "",
+            user: result.user || {},
+          });
+          if (!opts.silent) {
+            document.getElementById("accountStatus").innerHTML = `<div class="ok">Session verified.</div>`;
+          }
+          return true;
+        } catch (e) {
+          if (!opts.silent) {
+            renderError((html) => { document.getElementById("accountStatus").innerHTML = html; }, parseErrorMessage(e));
+          }
+          return false;
+        }
+      }
+
+      function authLogout() {
+        clearAuthSession(activeMcpBase);
+        adminUsersCache = [];
+        myMcpServersState = [];
+        sharedMcpServersState = [];
+        adminSharedMcpServersState = [];
+        document.getElementById("adminUsersView").innerHTML = "Admin users table not loaded.";
+        document.getElementById("myServersEditor").innerHTML = "No personal servers configured.";
+        document.getElementById("sharedServersList").innerHTML = "No shared servers available.";
+        document.getElementById("adminSharedServersEditor").innerHTML = "No shared server rows.";
+        showAuthPage(`<div class="ok">Logged out from ${escapeHtml(activeMcpBase)}</div>`);
+      }
+
+      function renderAdminUsers(users) {
+        if (!users || !users.length) {
+          document.getElementById("adminUsersView").innerHTML = "<p>No users found or admin access missing.</p>";
+          return;
+        }
+        const head = "<tr><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th>Created</th><th>Last Login</th><th>Action</th></tr>";
+        const body = users.map((u) => `
+          <tr>
+            <td>${escapeHtml(u.id)}</td>
+            <td>${escapeHtml(u.email)}</td>
+            <td>${escapeHtml(u.name)}</td>
+            <td>
+              <select id="admin-role-${u.id}">
+                <option value="user" ${u.role === "user" ? "selected" : ""}>user</option>
+                <option value="admin" ${u.role === "admin" ? "selected" : ""}>admin</option>
+              </select>
+            </td>
+            <td>
+              <input id="admin-active-${u.id}" type="checkbox" ${u.is_active ? "checked" : ""} />
+            </td>
+            <td>${escapeHtml(formatIso(u.created_at))}</td>
+            <td>${escapeHtml(formatIso(u.last_login_at))}</td>
+            <td><button class="ghost" onclick="adminSaveUser(${u.id})">Save</button></td>
+          </tr>
+        `).join("");
+        document.getElementById("adminUsersView").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      async function adminLoadUsers() {
+        try {
+          if (!ensureLoggedIn("Admin User Management", (html) => { document.getElementById("adminUsersView").innerHTML = html; })) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            document.getElementById("adminUsersView").innerHTML = "<p>Admin access required.</p>";
+            return;
+          }
+          const resp = await mcpCallTo(activeMcpBase, "admin_list_users", {});
+          adminUsersCache = resp.result || [];
+          renderAdminUsers(adminUsersCache);
+        } catch (e) {
+          renderError((html) => { document.getElementById("adminUsersView").innerHTML = html; }, parseErrorMessage(e));
+        }
+      }
+
+      async function loadAppData() {
+        await loadAvailableMcpServers();
+        if (isLlmTabEnabledForActiveServer()) {
+          await loadLlmConfig();
+        } else {
+          renderLlmStatus(`<div class="small">LLM configuration is managed via server-side configuration file in this environment.</div>`);
+        }
+        await loadRulesEditor();
+        await loadSuggestionDecisionViews();
+        await adminLoadUsers();
+      }
+
+      async function adminSaveUser(userId) {
+        try {
+          if (!ensureLoggedIn("Admin User Management", (html) => { document.getElementById("accountStatus").innerHTML = html; })) return;
+          const role = document.getElementById(`admin-role-${userId}`).value;
+          const isActive = document.getElementById(`admin-active-${userId}`).checked;
+          await mcpCallTo(activeMcpBase, "admin_update_user", { user_id: userId, role, is_active: isActive });
+          document.getElementById("accountStatus").innerHTML = `<div class="ok">User ${escapeHtml(userId)} updated.</div>`;
+          await adminLoadUsers();
+        } catch (e) {
+          renderError((html) => { document.getElementById("accountStatus").innerHTML = html; }, parseErrorMessage(e));
+        }
+      }
+
+      async function initializeMcp() {
+        try {
+          const res = await fetch(`${activeMcpBase}/mcp/initialize`, { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(JSON.stringify(data));
+
+          upsertConnectedServer({
+            url: activeMcpBase,
+            name: data.server || "dq-workflow-mcp",
+            version: data.version || "-",
+            status: "connected",
+            updated_at: new Date().toLocaleString(),
+          });
+
+          renderSession(`
+            <div class="pill">Connected</div>
+            <div class="metric"><strong>MCP Server:</strong> ${escapeHtml(data.server)}</div>
+            <div class="metric"><strong>Version:</strong> ${escapeHtml(data.version)}</div>
+            <p>Available capabilities: ${escapeHtml((data.capabilities || []).join(", "))}</p>
+          `);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function listTools() {
+        try {
+          if (!ensureLoggedIn("List Tools", renderSession)) return;
+          const res = await fetch(`${activeMcpBase}/mcp/tools`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(JSON.stringify(data));
+          const allowed = new Set([
+            "list_data_sources",
+            "show_data_model",
+            "show_dataset",
+            "show_foreign_key_relations",
+            "preview_dataset",
+          ]);
+          const rows = (data.tools || [])
+            .filter(t => allowed.has(t.name))
+            .map(t => ({ Tool: t.name, Description: t.description }));
+          renderSession(`<h4>Available Tools (${escapeHtml(activeMcpBase)})</h4>${renderTable(rows)}`);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function listDataSources() {
+        try {
+          if (!ensureLoggedIn("List Data Sources", renderSession)) return;
+          const data = await mcpCall("list_data_sources");
+          const rows = (data.result || []).map(s => ({
+            Provider: s.provider,
+            "Dataset Types": (s.dataset_types || []).join(", "),
+          }));
+          renderSession(`<h4>Data Sources (${escapeHtml(activeMcpBase)})</h4>${renderTable(rows)}`);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function showDataModel() {
+        try {
+          if (!ensureLoggedIn("Show Data Model", renderSession)) return;
+          const [modelResp, relResp] = await Promise.all([
+            mcpCall("show_data_model"),
+            mcpCall("show_foreign_key_relations"),
+          ]);
+          const rows = modelResp.result || [];
+          const grouped = {};
+          rows.forEach(r => {
+            if (!grouped[r.table_name]) grouped[r.table_name] = [];
+            grouped[r.table_name].push(r);
+          });
+
+          const cards = Object.entries(grouped).map(([tableName, cols]) => {
+            const body = cols.map(c => {
+              const keyTags = [];
+              if (c.is_primary_key) keyTags.push("PK");
+              if (c.is_foreign_key) keyTags.push("FK");
+              return `
+                <div class="er-row">
+                  <div class="er-col-name">${escapeHtml(c.column_name)}</div>
+                  <div class="er-col-type">${escapeHtml(c.data_type)}</div>
+                  <div>${keyTags.length ? keyTags.map(k => `<span class="er-col-key">${k}</span>`).join(" ") : ""}</div>
+                </div>
+              `;
+            }).join("");
+            return `<div class="er-card"><div class="er-head">${escapeHtml(tableName)}</div>${body}</div>`;
+          }).join("");
+
+          const explicit = (relResp.result || {}).explicit_relations || [];
+          const inferred = (relResp.result || {}).inferred_relations || [];
+          const relList = explicit.length
+            ? explicit.map(r => `<li><strong>${escapeHtml(r.source_table)}.${escapeHtml(r.source_column)}</strong> → ${escapeHtml(r.target_table)}.${escapeHtml(r.target_column)}</li>`).join("")
+            : inferred.map(r => `<li><strong>${escapeHtml(r.source_table)}.${escapeHtml(r.source_column)}</strong> → ${escapeHtml(r.target_table)}.${escapeHtml(r.target_column)} <em>(inferred)</em></li>`).join("");
+
+          renderSession(`
+            <h4>Data Model (${escapeHtml(activeMcpBase)})</h4>
+            <div class="er-wrap">${cards || "<p>No model metadata found.</p>"}</div>
+            <div class="er-rels">
+              <strong>Relations</strong>
+              ${relList ? `<ul>${relList}</ul>` : "<p>No relations found.</p>"}
+              <div class="er-legend">PK = Primary Key, FK = Foreign Key</div>
+            </div>
+          `);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function showDataset() {
+        try {
+          if (!ensureLoggedIn("Show Dataset", renderSession)) return;
+          const args = readArgs();
+          const data = await mcpCall("show_dataset", { dataset_type: args.dataset_type, limit: args.limit });
+          renderSession(`<h4>Dataset: ${escapeHtml(args.dataset_type)} (${escapeHtml(activeMcpBase)})</h4>${renderTable(data.result || [])}`);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      async function showForeignKeyRelations() {
+        try {
+          if (!ensureLoggedIn("Show Foreign Key Relations", renderSession)) return;
+          const data = await mcpCall("show_foreign_key_relations");
+          const explicitRows = (data.result || {}).explicit_relations || [];
+          const inferredRows = (data.result || {}).inferred_relations || [];
+          const explicit = explicitRows.length
+            ? `<h4>Explicit Foreign Keys</h4>${renderTable(explicitRows.map(r => ({
+                "Source Table": r.source_table,
+                "Source Column": r.source_column,
+                "Target Table": r.target_table,
+                "Target Column": r.target_column,
+                "Relation": r.relation_name,
+              })))}`
+            : "<h4>Explicit Foreign Keys</h4><p>No explicit foreign key constraints found.</p>";
+          const inferred = inferredRows.length
+            ? `<h4>Inferred Relations (by *_id naming)</h4>${renderTable(inferredRows.map(r => ({
+                "Source Table": r.source_table,
+                "Source Column": r.source_column,
+                "Target Table": r.target_table,
+                "Target Column": r.target_column,
+                "Relation": r.relation_name,
+              })))}`
+            : "<h4>Inferred Relations</h4><p>No inferred relations found.</p>";
+          renderSession(`<h4>Foreign Key Relations (${escapeHtml(activeMcpBase)})</h4>${explicit}${inferred}`);
+        } catch (e) {
+          renderError(renderSession, parseErrorMessage(e));
+        }
+      }
+
+      function readArgs() {
+        return {
+          provider: document.getElementById("provider").value,
+          dataset_type: document.getElementById("datasetType").value,
+          dataset_id: document.getElementById("datasetId").value,
+          limit: 50,
+        };
+      }
+
+      async function onDataSourceChanged() {
+        if (suppressSourceChangeHandlers) return;
+        const autoEnabled = document.getElementById("autoCorrectOnSourceChange").checked;
+        if (!autoEnabled) return;
+        await runCorrection();
+      }
+
+      function getCurrentSuggestion() {
+        if (currentSuggestionIndex < 0 || currentSuggestionIndex >= suggestionQueue.length) return null;
+        return suggestionQueue[currentSuggestionIndex];
+      }
+
+      function renderCurrentSuggestionInModal() {
+        const suggestion = getCurrentSuggestion();
+        if (!suggestion) return;
+        const assessment = suggestion.assessment_rule || {};
+        const correction = suggestion.correction_rule || null;
+        const position = `${currentSuggestionIndex + 1} / ${suggestionQueue.length}`;
+        const sourceServer = suggestion.__server_url || activeMcpBase;
+
+        document.getElementById("suggestionBody").innerHTML = `
+          <p><strong>Suggestion:</strong> ${escapeHtml(position)}</p>
+          <p><strong>Source MCP Server:</strong> ${escapeHtml(sourceServer)}</p>
+          <p><strong>Reason:</strong> ${escapeHtml(suggestion.reason || "")}</p>
+          <p><strong>LLM:</strong> ${escapeHtml((suggestion.llm || {}).provider)} / ${escapeHtml((suggestion.llm || {}).model)}</p>
+          <h4>Assessment Rule</h4>
+          ${renderTable([{
+            "Rule ID": assessment.id || "-",
+            "Field": assessment.field || "-",
+            "Type": assessment.type || "-",
+            "Severity": assessment.severity || "-",
+            "Parameters": assessment.params ? Object.entries(assessment.params).map(([k,v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" | ") : "-",
+          }])}
+          <h4>Correction Rule</h4>
+          ${correction ? renderTable([{
+            "Field": correction.field || "-",
+            "Type": correction.type || "-",
+            "Default": correction.default ?? "-",
+          }]) : "<p>No correction rule suggested.</p>"}
+        `;
+      }
+
+      function openSuggestionModalWithQueue(suggestions) {
+        suggestionQueue = Array.isArray(suggestions) ? suggestions.slice() : [];
+        currentSuggestionIndex = suggestionQueue.length ? 0 : -1;
+        if (currentSuggestionIndex === -1) return;
+        renderCurrentSuggestionInModal();
+        document.getElementById("suggestionModal").classList.add("active");
+      }
+
+      function closeSuggestionModal() {
+        document.getElementById("suggestionModal").classList.remove("active");
+        suggestionQueue = [];
+        currentSuggestionIndex = -1;
+      }
+
+      function nextSuggestionOrClose() {
+        if (currentSuggestionIndex + 1 < suggestionQueue.length) {
+          currentSuggestionIndex += 1;
+          renderCurrentSuggestionInModal();
+          return;
+        }
+        closeSuggestionModal();
+        renderRun(`<div class="ok">Suggestion review completed.</div>`);
+      }
+
+      function skipCurrentSuggestion() {
+        if (!suggestionQueue.length) {
+          closeSuggestionModal();
+          return;
+        }
+        suggestionQueue.splice(currentSuggestionIndex, 1);
+        if (!suggestionQueue.length) {
+          closeSuggestionModal();
+          renderRun(`<div class="ok">No more pending suggestions.</div>`);
+          return;
+        }
+        if (currentSuggestionIndex >= suggestionQueue.length) {
+          currentSuggestionIndex = suggestionQueue.length - 1;
+        }
+        renderCurrentSuggestionInModal();
+      }
+
+      async function approveCurrentSuggestion() {
+        const currentSuggestion = getCurrentSuggestion();
+        if (!currentSuggestion) return;
+        try {
+          await mcpCallTo(currentSuggestion.__server_url || activeMcpBase, "approve_suggestion", { suggestion_id: currentSuggestion.suggestion_id });
+          await loadSuggestionDecisionViews();
+          renderRun(`<div class="ok">Suggestion approved and stored. Re-running assessment and correction with updated rules...</div>`);
+          skipCurrentSuggestion();
+          await runAssessment(false, false);
+          await runCorrection(false);
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function declineCurrentSuggestion() {
+        const currentSuggestion = getCurrentSuggestion();
+        if (!currentSuggestion) return;
+        try {
+          await mcpCallTo(currentSuggestion.__server_url || activeMcpBase, "decline_suggestion", { suggestion_id: currentSuggestion.suggestion_id });
+          await loadSuggestionDecisionViews();
+          renderRun(`<div class="ok">Suggestion declined.</div>`);
+          skipCurrentSuggestion();
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function previewDataset() {
+        try {
+          if (!ensureLoggedIn("Preview Dataset", renderRun)) return;
+          const data = await mcpCall("preview_dataset", readArgs());
+          renderRun(`<h4>Dataset Preview</h4>${renderTable(data.result || [])}`);
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function runAssessment(showSuggestionModal = true, replaceQueue = true) {
+        try {
+          if (!ensureLoggedIn("Run Assessment", renderRun)) return;
+          const targets = getSelectedRunServers();
+          const args = readArgs();
+          const results = await Promise.all(
+            targets.map(async (serverUrl) => {
+              const data = await mcpCallTo(serverUrl, "run_dq_assessment", args);
+              return { serverUrl, data };
+            })
+          );
+
+          const summaryRows = results.map(({ serverUrl, data }) => {
+            const r = data.result || {};
+            return {
+              "MCP Server": serverUrl,
+              "Run ID": data.run_id || "-",
+              Dataset: r.dataset_id || "-",
+              "Quality Index": `${r.quality_index ?? "-"}%`,
+              "Failed Checks": `${r.failed_checks ?? 0} / ${r.total_checks ?? 0}`,
+              "Violations": (r.violations || []).length,
+              LLM: `${(r.llm || {}).provider || "-"} / ${(r.llm || {}).model || "-"}`,
+            };
+          });
+          renderRun(`
+            <h4>Assessment Completed (${results.length} server${results.length > 1 ? "s" : ""})</h4>
+            ${renderTable(summaryRows)}
+          `);
+
+          const suggestions = results.flatMap(({ serverUrl, data }) =>
+            ((data.result || {}).suggestions || []).map(s => ({ ...s, __server_url: serverUrl }))
+          );
+          if (showSuggestionModal && suggestions.length > 0) {
+            if (replaceQueue) {
+              openSuggestionModalWithQueue(suggestions);
+            } else if (!suggestionQueue.length) {
+              openSuggestionModalWithQueue(suggestions);
+            }
+          }
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function runCorrection(showMessage = true) {
+        try {
+          if (!ensureLoggedIn("Run Correction", renderRun)) return;
+          const targets = getSelectedRunServers();
+          const args = readArgs();
+          const results = await Promise.all(
+            targets.map(async (serverUrl) => {
+              const data = await mcpCallTo(serverUrl, "run_correction", args);
+              return { serverUrl, data };
+            })
+          );
+          const summaryRows = results.map(({ serverUrl, data }) => {
+            const r = data.result || {};
+            return {
+              "MCP Server": serverUrl,
+              "Run ID": data.run_id || "-",
+              Dataset: r.dataset_id || "-",
+              "Corrections Applied": r.corrections_applied ?? 0,
+            };
+          });
+          renderRun(`
+            <h4>Correction Completed (${results.length} server${results.length > 1 ? "s" : ""})</h4>
+            ${showMessage ? '<div class="ok" style="margin-top:8px;">Correction applied with active rules.</div>' : ''}
+            ${renderTable(summaryRows)}
+          `);
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function getRuns() {
+        try {
+          if (!ensureLoggedIn("Workflow History", renderRun)) return;
+          const targets = getSelectedRunServers();
+          const runResults = await Promise.all(
+            targets.map(async (serverUrl) => {
+              const data = await mcpCallTo(serverUrl, "get_workflow_runs", { limit: 50 });
+              return (data.result || []).map(r => ({ ...r, __server_url: serverUrl }));
+            })
+          );
+          const rows = runResults.flat().sort((a, b) => (String(b.created_at || "")).localeCompare(String(a.created_at || "")));
+          if (!rows.length) {
+            renderRun("<h4>Workflow Run History</h4><p>No runs found.</p>");
+            return;
+          }
+          const head = "<tr><th>MCP Server</th><th>Run ID</th><th>Dataset ID</th><th>Type</th><th>Provider</th><th>Process</th><th>Status</th><th>Created At</th><th>Action</th></tr>";
+          const body = rows.map(r => `
+            <tr>
+              <td>${escapeHtml(r.__server_url)}</td>
+              <td>${escapeHtml(r.run_id)}</td>
+              <td>${escapeHtml(r.dataset_id)}</td>
+              <td>${escapeHtml(r.dataset_type)}</td>
+              <td>${escapeHtml(r.provider)}</td>
+              <td>${escapeHtml(r.process_type)}</td>
+              <td>${escapeHtml(r.status)}</td>
+              <td>${escapeHtml(r.created_at)}</td>
+              <td><button class="ghost" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">View Details</button></td>
+            </tr>
+          `).join("");
+          renderRun(`<h4>Workflow Run History</h4><table><thead>${head}</thead><tbody>${body}</tbody></table>`);
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function showWorkflowRunDetail(serverUrl, runId) {
+        try {
+          if (!ensureLoggedIn("Workflow Run Detail", renderRun)) return;
+          const resp = await mcpCallTo(serverUrl, "get_workflow_run_detail", { run_id: runId });
+          const d = resp.result || {};
+          const result = d.result || {};
+          const violations = (result.violations || []).map(v => ({
+            "Record": v.record_index,
+            "Rule": v.rule_id,
+            "Field": v.field,
+            "Severity": v.severity,
+            "Reason": v.reason,
+            "Value": v.value,
+          }));
+          const corrections = (result.applied || []).map(a => ({
+            "Record": a.record_index,
+            "Field": a.field,
+            "Action": a.action,
+            "New Value": a.new_value,
+          }));
+          const hasAssessment = result.quality_index !== undefined || violations.length > 0;
+          const hasCorrection = result.corrections_applied !== undefined || corrections.length > 0;
+
+          renderRun(`
+            <h4>Workflow Run Detail</h4>
+            <div class="metric"><strong>MCP Server:</strong> ${escapeHtml(serverUrl)}</div>
+            <div class="metric"><strong>Run ID:</strong> ${escapeHtml(d.run_id)}</div>
+            <div class="metric"><strong>Dataset ID:</strong> ${escapeHtml(d.dataset_id)}</div>
+            <div class="metric"><strong>Type:</strong> ${escapeHtml(d.dataset_type)}</div>
+            <div class="metric"><strong>Process:</strong> ${escapeHtml(d.process_type)}</div>
+            <div class="metric"><strong>Status:</strong> ${escapeHtml(d.status)}</div>
+            <div class="metric"><strong>Created At:</strong> ${escapeHtml(d.created_at)}</div>
+            <h4>Result Summary</h4>
+            <div class="metric"><strong>Total Records:</strong> ${escapeHtml(result.total_records ?? "-")}</div>
+            ${hasAssessment ? `<div class="metric"><strong>Quality Index:</strong> ${escapeHtml(result.quality_index ?? "-")}%</div>` : ""}
+            ${hasAssessment ? `<div class="metric"><strong>Failed Checks:</strong> ${escapeHtml(result.failed_checks ?? 0)} / ${escapeHtml(result.total_checks ?? 0)}</div>` : ""}
+            ${hasCorrection ? `<div class="metric"><strong>Corrections Applied:</strong> ${escapeHtml(result.corrections_applied ?? 0)}</div>` : ""}
+
+            ${violations.length ? `<h4>Violations</h4>${renderTable(violations)}` : ""}
+            ${corrections.length ? `<h4>Applied Corrections</h4>${renderTable(corrections)}` : ""}
+            ${(!violations.length && !corrections.length) ? "<p>No detailed rows available for this run.</p>" : ""}
+            <button class="secondary" onclick="getRuns()">Back To History</button>
+          `);
+        } catch (e) {
+          renderError(renderRun, parseErrorMessage(e));
+        }
+      }
+
+      async function loadWorkflowAnalytics() {
+        try {
+          if (!ensureLoggedIn("Workflow Analytics", renderWorkflowAnalytics)) return;
+          const targets = getAnalyticsSelectedServers();
+          if (!targets.length) {
+            renderWorkflowAnalytics(`<div class="err">Select at least one MCP server for analytics.</div>`);
+            return;
+          }
+          const rangeDays = Number(document.getElementById("analyticsRange")?.value || 0);
+
+          const runsByServer = await Promise.all(
+            targets.map(async (serverUrl) => {
+              const resp = await mcpCallTo(serverUrl, "get_workflow_runs", { limit: 200 });
+              const rows = (resp.result || []).map(r => ({ ...r, __server_url: serverUrl }));
+              return rows;
+            })
+          );
+          const allRuns = runsByServer.flat().filter(r => includeRunByRange(r.created_at, rangeDays));
+          const assessmentRuns = allRuns.filter(r => r.process_type === "assessment" && r.status === "completed");
+          const correctionRuns = allRuns.filter(r => r.process_type === "correction" && r.status === "completed");
+
+          const assessmentDetails = await Promise.all(
+            assessmentRuns.map(async (r) => {
+              try {
+                const d = await mcpCallTo(r.__server_url, "get_workflow_run_detail", { run_id: r.run_id });
+                return { run: r, detail: d.result || {} };
+              } catch (_) {
+                return null;
+              }
+            })
+          );
+
+          const trendPoints = assessmentDetails
+            .filter(Boolean)
+            .map(({ run, detail }) => ({
+              ts: String(run.created_at || ""),
+              label: `${run.dataset_type} @ ${formatIso(run.created_at)}`,
+              value: Number((detail.result || {}).quality_index),
+              server: run.__server_url,
+              dataset_type: run.dataset_type,
+            }))
+            .filter(p => Number.isFinite(p.value))
+            .sort((a, b) => a.ts.localeCompare(b.ts));
+
+          const severityTrendPoints = assessmentDetails
+            .filter(Boolean)
+            .map(({ run, detail }) => {
+              const violations = (detail.result || {}).violations || [];
+              const counts = { high: 0, medium: 0, low: 0 };
+              const ruleIds = [];
+              violations.forEach(v => {
+                const sev = String(v.severity || "").toLowerCase();
+                if (sev === "high") counts.high += 1;
+                else if (sev === "medium") counts.medium += 1;
+                else if (sev === "low") counts.low += 1;
+                if (v.rule_id) ruleIds.push(String(v.rule_id));
+              });
+              return {
+                ts: String(run.created_at || ""),
+                label: `${run.dataset_type} @ ${formatIso(run.created_at)}`,
+                server: run.__server_url,
+                dataset_type: run.dataset_type,
+                high: counts.high,
+                medium: counts.medium,
+                low: counts.low,
+                ruleIds,
+              };
+            })
+            .sort((a, b) => a.ts.localeCompare(b.ts));
+
+          const suggestionDecisionResponses = await Promise.all(
+            targets.map(async (serverUrl) => {
+              try {
+                const resp = await mcpCallTo(serverUrl, "get_suggestion_decisions", { limit: 500 });
+                return resp.result || {};
+              } catch (_) {
+                return {};
+              }
+            })
+          );
+
+          const approvedSet = new Set();
+          const declinedSet = new Set();
+          suggestionDecisionResponses.forEach((block) => {
+            (block.approved || []).forEach((item) => {
+              const s = item.suggestion || {};
+              const c = s.correction_rule || {};
+              if (c.field && c.type) approvedSet.add(`${item.dataset_type}|${c.field}|${c.type}`);
+            });
+            (block.declined || []).forEach((item) => {
+              const s = item.suggestion || {};
+              const c = s.correction_rule || {};
+              if (c.field && c.type) declinedSet.add(`${item.dataset_type}|${c.field}|${c.type}`);
+            });
+          });
+
+          const correctionDetails = await Promise.all(
+            correctionRuns.map(async (r) => {
+              try {
+                const d = await mcpCallTo(r.__server_url, "get_workflow_run_detail", { run_id: r.run_id });
+                return { run: r, detail: d.result || {} };
+              } catch (_) {
+                return null;
+              }
+            })
+          );
+
+          const usage = { existing: 0, suggestedApproved: 0, suggestedDeclined: 0 };
+          const ruleTrendPoints = [];
+          correctionDetails.filter(Boolean).forEach(({ run, detail }) => {
+            const applied = ((detail.result || {}).applied || []);
+            const point = {
+              ts: String(run.created_at || ""),
+              label: `${run.dataset_type} @ ${formatIso(run.created_at)}`,
+              server: run.__server_url,
+              dataset_type: run.dataset_type,
+              existing: 0,
+              suggestedApproved: 0,
+              suggestedDeclined: 0,
+              existingRules: [],
+              suggestedApprovedRules: [],
+              suggestedDeclinedRules: [],
+            };
+            applied.forEach((item) => {
+              const key = `${run.dataset_type}|${item.field || ""}|${item.action || ""}`;
+              const ruleLabel = `${item.field || "?"}:${item.action || "?"}`;
+              if (approvedSet.has(key)) {
+                usage.suggestedApproved += 1;
+                point.suggestedApproved += 1;
+                point.suggestedApprovedRules.push(ruleLabel);
+              } else if (declinedSet.has(key)) {
+                usage.suggestedDeclined += 1;
+                point.suggestedDeclined += 1;
+                point.suggestedDeclinedRules.push(ruleLabel);
+              } else {
+                usage.existing += 1;
+                point.existing += 1;
+                point.existingRules.push(ruleLabel);
+              }
+            });
+            ruleTrendPoints.push(point);
+          });
+          ruleTrendPoints.sort((a, b) => a.ts.localeCompare(b.ts));
+
+          const progressSummary = {
+            totalRuns: allRuns.length,
+            datasetLoaded: allRuns.length,
+            assessmentCompleted: assessmentRuns.length,
+            violationsDetected: assessmentDetails.filter(Boolean).filter(({ detail }) => ((detail.result || {}).violations || []).length > 0).length,
+            suggestionsGenerated: assessmentDetails.filter(Boolean).filter(({ detail }) => ((detail.result || {}).suggestions || []).length > 0).length,
+            correctionCompleted: correctionRuns.length,
+          };
+
+          renderWorkflowAnalytics(`
+            ${renderQualityLineChart(trendPoints)}
+            ${renderSeverityTrendChart(severityTrendPoints)}
+            ${renderRuleApplicationLineChart(ruleTrendPoints)}
+            ${renderCorrectionUsageChart(usage)}
+            ${renderWorkflowProgressTimeline(progressSummary)}
+            ${renderAnalyticsImprovementIdeas()}
+            <div class="small" style="margin-top:10px;">
+              Based on ${assessmentRuns.length} assessment runs and ${correctionRuns.length} correction runs across ${targets.length} selected MCP server(s), date range: ${rangeDays > 0 ? `last ${rangeDays} days` : "all time"}.
+            </div>
+          `);
+        } catch (e) {
+          renderError(renderWorkflowAnalytics, parseErrorMessage(e));
+        }
+      }
+
+      function datasetTypesFromConfig(cfg) {
+        const a = Object.keys(cfg.assessment_rules || {});
+        const c = Object.keys(cfg.correction_rules || {});
+        return Array.from(new Set([...a, ...c])).sort();
+      }
+
+      function getSelectedRulesDatasetType() {
+        const el = document.getElementById("rulesDatasetType");
+        return el.value;
+      }
+
+      function setRulesDatasetOptions(datasetTypes, preferred) {
+        const sel = document.getElementById("rulesDatasetType");
+        const prev = preferred || sel.value;
+        sel.innerHTML = datasetTypes.map(dt => `<option value="${escapeHtml(dt)}">${escapeHtml(dt)}</option>`).join("");
+        if (datasetTypes.length) {
+          sel.value = datasetTypes.includes(prev) ? prev : datasetTypes[0];
+        }
+      }
+
+      function renderAssessmentRulesTable(datasetType) {
+        const rows = rulesConfigState.assessment_rules?.[datasetType] || [];
+        if (!rows.length) {
+          document.getElementById("assessmentRulesEditor").innerHTML = "<p>No assessment rules for this dataset type.</p>";
+          return;
+        }
+        const head = "<tr><th>Rule ID</th><th>Field</th><th>Type</th><th>Severity</th><th>Params (key=value;...)</th><th>Action</th></tr>";
+        const body = rows.map((r, i) => {
+          const paramsText = r.params
+            ? Object.entries(r.params).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join("; ")
+            : "";
+          return `
+            <tr>
+              <td><input value="${escapeHtml(r.id || "")}" onchange="updateAssessmentRule(${i}, 'id', this.value)" /></td>
+              <td><input value="${escapeHtml(r.field || "")}" onchange="updateAssessmentRule(${i}, 'field', this.value)" /></td>
+              <td>
+                <select onchange="updateAssessmentRule(${i}, 'type', this.value)">
+                  ${["not_null","range","allowed_values","regex"].map(t => `<option value="${t}" ${r.type===t?"selected":""}>${t}</option>`).join("")}
+                </select>
+              </td>
+              <td>
+                <select onchange="updateAssessmentRule(${i}, 'severity', this.value)">
+                  ${["low","medium","high"].map(s => `<option value="${s}" ${r.severity===s?"selected":""}>${s}</option>`).join("")}
+                </select>
+              </td>
+              <td><input value="${escapeHtml(paramsText)}" onchange="updateAssessmentRuleParams(${i}, this.value)" /></td>
+              <td><button class="ghost" onclick="removeAssessmentRule(${i})">Delete</button></td>
+            </tr>
+          `;
+        }).join("");
+        document.getElementById("assessmentRulesEditor").innerHTML = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function renderCorrectionRulesTable(datasetType) {
+        const rows = rulesConfigState.correction_rules?.[datasetType] || [];
+        if (!rows.length) {
+          document.getElementById("correctionRulesEditor").innerHTML = "<p>No correction rules for this dataset type.</p>";
+          return;
+        }
+        const head = "<tr><th>Field</th><th>Type</th><th>Default</th><th>Action</th></tr>";
+        const body = rows.map((r, i) => `
+          <tr>
+            <td><input value="${escapeHtml(r.field || "")}" onchange="updateCorrectionRule(${i}, 'field', this.value)" /></td>
+            <td>
+              <select onchange="updateCorrectionRule(${i}, 'type', this.value)">
+                <option value="fill_default_if_null" ${r.type==="fill_default_if_null"?"selected":""}>fill_default_if_null</option>
+              </select>
+            </td>
+            <td><input value="${escapeHtml(r.default ?? "")}" onchange="updateCorrectionRule(${i}, 'default', this.value)" /></td>
+            <td><button class="ghost" onclick="removeCorrectionRule(${i})">Delete</button></td>
+          </tr>
+        `).join("");
+        document.getElementById("correctionRulesEditor").innerHTML = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function renderRulesEditorTables(preferredDatasetType = null) {
+        const types = datasetTypesFromConfig(rulesConfigState);
+        if (!types.length) {
+          rulesConfigState.assessment_rules = { customer_profile: [] };
+          rulesConfigState.correction_rules = { customer_profile: [] };
+        }
+        const allTypes = datasetTypesFromConfig(rulesConfigState);
+        setRulesDatasetOptions(allTypes, preferredDatasetType || "customer_profile");
+        const selected = getSelectedRulesDatasetType();
+        if (!rulesConfigState.assessment_rules[selected]) rulesConfigState.assessment_rules[selected] = [];
+        if (!rulesConfigState.correction_rules[selected]) rulesConfigState.correction_rules[selected] = [];
+        renderAssessmentRulesTable(selected);
+        renderCorrectionRulesTable(selected);
+      }
+
+      function parseParamsText(text) {
+        const out = {};
+        const raw = String(text || "").trim();
+        if (!raw) return out;
+        raw.split(";").map(x => x.trim()).filter(Boolean).forEach(part => {
+          const idx = part.indexOf("=");
+          if (idx < 0) return;
+          const key = part.slice(0, idx).trim();
+          const value = part.slice(idx + 1).trim();
+          if (!key) return;
+          if (value.includes(",")) {
+            out[key] = value.split(",").map(v => v.trim()).filter(Boolean);
+          } else if (value !== "" && !Number.isNaN(Number(value))) {
+            out[key] = Number(value);
+          } else {
+            out[key] = value;
+          }
+        });
+        return out;
+      }
+
+      function updateAssessmentRule(index, key, value) {
+        const dt = getSelectedRulesDatasetType();
+        const arr = rulesConfigState.assessment_rules[dt] || [];
+        arr[index] = arr[index] || {};
+        arr[index][key] = value;
+      }
+
+      function updateAssessmentRuleParams(index, value) {
+        const dt = getSelectedRulesDatasetType();
+        const arr = rulesConfigState.assessment_rules[dt] || [];
+        arr[index] = arr[index] || {};
+        const parsed = parseParamsText(value);
+        if (Object.keys(parsed).length) arr[index].params = parsed;
+        else delete arr[index].params;
+      }
+
+      function removeAssessmentRule(index) {
+        const dt = getSelectedRulesDatasetType();
+        rulesConfigState.assessment_rules[dt].splice(index, 1);
+        renderRulesEditorTables(dt);
+      }
+
+      function addAssessmentRule() {
+        const dt = getSelectedRulesDatasetType();
+        rulesConfigState.assessment_rules[dt].push({
+          id: `R${Date.now().toString().slice(-6)}`,
+          field: "",
+          type: "not_null",
+          severity: "medium",
+        });
+        renderRulesEditorTables(dt);
+      }
+
+      function updateCorrectionRule(index, key, value) {
+        const dt = getSelectedRulesDatasetType();
+        const arr = rulesConfigState.correction_rules[dt] || [];
+        arr[index] = arr[index] || {};
+        if (key === "default") {
+          if (value !== "" && !Number.isNaN(Number(value))) arr[index][key] = Number(value);
+          else arr[index][key] = value;
+        } else {
+          arr[index][key] = value;
+        }
+      }
+
+      function removeCorrectionRule(index) {
+        const dt = getSelectedRulesDatasetType();
+        rulesConfigState.correction_rules[dt].splice(index, 1);
+        renderRulesEditorTables(dt);
+      }
+
+      function addCorrectionRule() {
+        const dt = getSelectedRulesDatasetType();
+        rulesConfigState.correction_rules[dt].push({
+          field: "",
+          type: "fill_default_if_null",
+          default: "",
+        });
+        renderRulesEditorTables(dt);
+      }
+
+      function addDatasetType() {
+        const el = document.getElementById("newDatasetType");
+        const name = String(el.value || "").trim();
+        if (!name) return;
+        if (!rulesConfigState.assessment_rules[name]) rulesConfigState.assessment_rules[name] = [];
+        if (!rulesConfigState.correction_rules[name]) rulesConfigState.correction_rules[name] = [];
+        el.value = "";
+        renderRulesEditorTables(name);
+      }
+
+      async function loadRulesEditor() {
+        try {
+          if (!ensureLoggedIn("Load Rules", renderRulesStatus)) return;
+          const resp = await mcpCall("get_rules_config");
+          const cfg = (resp.result || {}).config || {};
+          rulesConfigState = {
+            data_sources: Array.isArray(cfg.data_sources) ? cfg.data_sources : [],
+            assessment_rules: cfg.assessment_rules || {},
+            correction_rules: cfg.correction_rules || {},
+          };
+          renderRulesEditorTables();
+          renderRulesStatus(`<div class="ok">Rules loaded from ${escapeHtml(activeMcpBase)}.</div>`);
+          await loadSuggestionDecisionViews();
+        } catch (e) {
+          renderError(renderRulesStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function saveRulesEditor() {
+        try {
+          if (!ensureLoggedIn("Save Rules", renderRulesStatus)) return;
+          const payload = {
+            data_sources: rulesConfigState.data_sources || [],
+            assessment_rules: rulesConfigState.assessment_rules || {},
+            correction_rules: rulesConfigState.correction_rules || {},
+          };
+          await mcpCall("save_rules_config", { config: payload });
+          renderRulesStatus(`<div class="ok">Rules saved successfully to ${escapeHtml(activeMcpBase)}.</div>`);
+          await loadSuggestionDecisionViews();
+        } catch (e) {
+          renderError(renderRulesStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function loadSuggestionDecisionViews() {
+        try {
+          if (!ensureLoggedIn("Load Suggestion Decisions", renderRulesStatus)) return;
+          const resp = await mcpCall("get_suggestion_decisions", { limit: 200 });
+          const approved = (resp.result || {}).approved || [];
+          const declined = (resp.result || {}).declined || [];
+          renderAcceptedSuggestions(renderSuggestionDecisionTable(approved));
+          renderDeclinedSuggestions(renderSuggestionDecisionTable(declined));
+        } catch (e) {
+          renderError(renderRulesStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function loadLlmConfig() {
+        try {
+          if (!ensureLoggedIn("Load LLM Config", renderLlmStatus)) return;
+          const resp = await mcpCall("get_llm_yaml");
+          const yamlText = (resp.result || {}).yaml_text || "";
+          const parsed = parseSimpleLlmYaml(yamlText);
+          document.getElementById("llmProvider").value = parsed.provider || "none";
+          document.getElementById("llmModel").value = parsed.model || "";
+          document.getElementById("llmEndpoint").value = parsed.endpoint || "";
+          document.getElementById("llmApiKeyEnv").value = parsed.api_key_env || "OPENAI_API_KEY";
+          document.getElementById("llmApiKey").value = parsed.api_key || "";
+          document.getElementById("llmTemp").value = parsed.temperature ?? 0.0;
+          renderLlmStatus(`<div class="ok">LLM config loaded from ${escapeHtml(activeMcpBase)}.</div>`);
+        } catch (e) {
+          renderError(renderLlmStatus, parseErrorMessage(e));
+        }
+      }
+
+      function parseSimpleLlmYaml(yamlText) {
+        const out = {};
+        const lines = String(yamlText || "").split(/\r?\n/);
+        for (const line of lines) {
+          const m = line.match(/^\s{2}([a-zA-Z_]+):\s*(.*)$/);
+          if (!m) continue;
+          let v = m[2].trim();
+          if (v === "null") v = "";
+          if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+            v = v.slice(1, -1);
+          }
+          if (m[1] === "temperature") {
+            out[m[1]] = Number(v || 0);
+          } else {
+            out[m[1]] = v;
+          }
+        }
+        return out;
+      }
+
+      function buildLlmYamlFromForm() {
+        const provider = document.getElementById("llmProvider").value;
+        const model = document.getElementById("llmModel").value;
+        const endpoint = document.getElementById("llmEndpoint").value.trim();
+        const apiKeyEnv = document.getElementById("llmApiKeyEnv").value.trim() || "OPENAI_API_KEY";
+        const apiKey = document.getElementById("llmApiKey").value;
+        const temperature = Number(document.getElementById("llmTemp").value || 0);
+
+        return [
+          "llm:",
+          `  provider: ${provider}`,
+          `  model: ${model}`,
+          `  endpoint: ${endpoint ? endpoint : "null"}`,
+          `  api_key_env: ${apiKeyEnv}`,
+          `  api_key: ${apiKey ? JSON.stringify(apiKey) : "\"\""}`,
+          `  temperature: ${Number.isFinite(temperature) ? temperature : 0}`,
+          "",
+        ].join("\n");
+      }
+
+      async function saveLlmConfig() {
+        try {
+          if (!ensureLoggedIn("Save LLM Config", renderLlmStatus)) return;
+          const yamlText = buildLlmYamlFromForm();
+          await mcpCall("save_llm_yaml", { yaml_text: yamlText });
+          renderLlmStatus(`<div class="ok">LLM config saved. New assessments will use this setting.</div>`);
+        } catch (e) {
+          renderError(renderLlmStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function boot() {
+        loadAuthSessions();
+        updateActiveServerLabel();
+        refreshAuthStatus();
+        document.getElementById("serverUrlInput").value = defaultMcpBase;
+        document.getElementById("provider").addEventListener("change", onDataSourceChanged);
+        document.getElementById("datasetType").addEventListener("change", onDataSourceChanged);
+        const rulesDatasetTypeEl = document.getElementById("rulesDatasetType");
+        if (rulesDatasetTypeEl) {
+          rulesDatasetTypeEl.addEventListener("change", () => renderRulesEditorTables(getSelectedRulesDatasetType()));
+        }
+        const analyticsRangeEl = document.getElementById("analyticsRange");
+        if (analyticsRangeEl) {
+          analyticsRangeEl.addEventListener("change", () => {
+            if (getAnalyticsSelectedServers().length) loadWorkflowAnalytics();
+          });
+        }
+        suppressSourceChangeHandlers = false;
+        try {
+          await connectServer(defaultMcpBase);
+          const secondaryDefault = defaultMcpBase.endsWith(":8002")
+            ? `${defaultMcpBase.slice(0, -5)}:8003`
+            : null;
+          if (secondaryDefault) {
+            try { await connectServer(secondaryDefault); } catch (_) {}
+            setActiveServer(defaultMcpBase);
+          }
+          selectedRunServers = new Set(connectedServers.map(s => s.url));
+          renderRunServerSelector();
+          renderSession(`<div class="ok">Connected to default MCP server ${escapeHtml(defaultMcpBase)}.</div>`);
+          const existing = getAuthSession(activeMcpBase);
+          if (existing && existing.token) {
+            const verified = await authMe({ silent: true });
+            if (verified) {
+              showAppPage();
+              await loadAppData();
+              return;
+            }
+          }
+          showAuthPage(`<div class="small">Please login to continue.</div>`);
+        } catch (_) {
+          showAuthPage(`<div class="err">MCP server ${escapeHtml(defaultMcpBase)} is not reachable yet. Start the stack, set MCP Server URL, then login.</div>`);
+          renderSession(`<div class="err">Default MCP server ${escapeHtml(defaultMcpBase)} is not reachable yet. Start the stack and click Connect Server.</div>`);
+        }
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

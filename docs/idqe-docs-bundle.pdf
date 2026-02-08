@@ -1,0 +1,1054 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 8 /Kids [11 0 R 12 0 R 13 0 R 14 0 R 15 0 R 16 0 R 17 0 R 18 0 R] >>
+endobj
+3 0 obj
+<< /Length 1816 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(INTELLIGENT DATA QUALITY ENGINE) Tj
+T*
+(Documentation Bundle) Tj
+T*
+() Tj
+T*
+(======================================================================) Tj
+T*
+(DEMO INSTALLATION GUIDE) Tj
+T*
+(/Users/mozesrahangmetan/Documents/DQ/docs/install-demo-detailed.md) Tj
+T*
+(======================================================================) Tj
+T*
+() Tj
+T*
+(IDQE DEMO INSTALLATION GUIDE \(DETAILED\)) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(This guide installs the full demo stack on macOS using Docker Desktop.) Tj
+T*
+() Tj
+T*
+(1. Prerequisites) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* macOS with Docker Desktop running) Tj
+T*
+(* Docker Compose v2) Tj
+T*
+(* Free ports:) Tj
+T*
+(  - `8080` workflow client) Tj
+T*
+(  - `8001` dq-engine) Tj
+T*
+(  - `8002` mcp-server-a) Tj
+T*
+(  - `8003` mcp-server-b) Tj
+T*
+(  - `5432` postgres-a) Tj
+T*
+(  - `5433` postgres-b) Tj
+T*
+() Tj
+T*
+(Verify:) Tj
+T*
+() Tj
+T*
+(    docker --version) Tj
+T*
+(    docker compose version) Tj
+T*
+() Tj
+T*
+(2. Project Setup) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+T*
+() Tj
+T*
+(Demo uses:) Tj
+T*
+() Tj
+T*
+(* `docker-compose.demo.yml`) Tj
+T*
+(* `config/rules.demo.a.yaml`) Tj
+T*
+(* `config/rules.demo.b.yaml`) Tj
+T*
+(* `config/llm.demo.yaml`) Tj
+T*
+() Tj
+T*
+(3. Start Demo Stack) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(    docker compose -f docker-compose.demo.yml up --build) Tj
+T*
+() Tj
+T*
+(Wait until all containers are healthy.) Tj
+T*
+() Tj
+T*
+(4. Open Endpoints) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* Workflow UI: [http://localhost:8080]\(http://localhost:8080\)) Tj
+T*
+(* MCP A: [http://localhost:8002/docs]\(http://localhost:8002/docs\)) Tj
+T*
+(* MCP B: [http://localhost:8003/docs]\(http://localhost:8003/docs\)) Tj
+T*
+(* DQ Engine: [http://localhost:8001/docs]\(http://localhost:8001/docs\)) Tj
+T*
+() Tj
+T*
+(5. Demo Login) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Length 1675 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+() Tj
+T*
+(The app shows Login/Register first.) Tj
+T*
+() Tj
+T*
+(Demo admin default:) Tj
+T*
+() Tj
+T*
+(* Email: `admin@idqe.local`) Tj
+T*
+(* Password: `Admin123!`) Tj
+T*
+() Tj
+T*
+(You can also register normal users from the Login/Register page.) Tj
+T*
+() Tj
+T*
+(6. MCP Session Setup) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(In `MCP Session` tab:) Tj
+T*
+() Tj
+T*
+(1. Connect `http://localhost:8002`.) Tj
+T*
+(2. Optional: connect `http://localhost:8003`.) Tj
+T*
+(3. Check `Connected MCP Servers`.) Tj
+T*
+(4. Use `My MCP Servers` to save personal endpoints.) Tj
+T*
+(5. Use `Shared MCP Servers` to connect to shared endpoints.) Tj
+T*
+() Tj
+T*
+(7. Run First Workflow) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(In `Run Workflow`:) Tj
+T*
+() Tj
+T*
+(1. Select provider and dataset type.) Tj
+T*
+(2. Select one or more target MCP servers.) Tj
+T*
+(3. Click `Preview Dataset`.) Tj
+T*
+(4. Click `Run Assessment`.) Tj
+T*
+(5. Click `Run Correction`.) Tj
+T*
+(6. Open `Workflow History` and view run details.) Tj
+T*
+() Tj
+T*
+(8. Rules Management) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(In `DQ Rules Editor`:) Tj
+T*
+() Tj
+T*
+(1. Click `Load Rules`.) Tj
+T*
+(2. Edit assessment/correction rules in table editor.) Tj
+T*
+(3. Click `Save Rules`.) Tj
+T*
+(4. Review accepted/declined suggestion decisions below.) Tj
+T*
+() Tj
+T*
+(9. LLM in Demo) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Demo UI includes `LLM Config` tab.) Tj
+T*
+() Tj
+T*
+(If using OpenAI:) Tj
+T*
+() Tj
+T*
+(    export OPENAI_API_KEY=your_key) Tj
+T*
+(    docker compose -f docker-compose.demo.yml up --build) Tj
+T*
+() Tj
+T*
+(If no key is provided, keep provider `mock` or `none`.) Tj
+T*
+() Tj
+T*
+(10. Smoke Test) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Run API smoke test:) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Length 1882 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+T*
+(    python3 scripts/test_mcp_flow.py) Tj
+T*
+() Tj
+T*
+(11. Stop / Reset) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Stop:) Tj
+T*
+() Tj
+T*
+(    docker compose -f docker-compose.demo.yml down) Tj
+T*
+() Tj
+T*
+(Full reset \(containers + volumes\):) Tj
+T*
+() Tj
+T*
+(    docker compose -f docker-compose.demo.yml down -v) Tj
+T*
+() Tj
+T*
+(12. Troubleshooting) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* Port conflict: stop local process/container using same port.) Tj
+T*
+(* Login/session issues: logout and login again.) Tj
+T*
+(* Missing data: confirm target server and dataset type.) Tj
+T*
+(* Service error: inspect logs:) Tj
+T*
+() Tj
+T*
+(    docker compose -f docker-compose.demo.yml logs -f) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(======================================================================) Tj
+T*
+(PRODUCTION INSTALLATION GUIDE) Tj
+T*
+(/Users/mozesrahangmetan/Documents/DQ/docs/install-production-detailed.md) Tj
+T*
+(======================================================================) Tj
+T*
+() Tj
+T*
+(IDQE PRODUCTION INSTALLATION GUIDE \(DETAILED\)) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(This guide describes a production setup pattern for IDQE.) Tj
+T*
+() Tj
+T*
+(1. Production Architecture) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Recommended services:) Tj
+T*
+() Tj
+T*
+(* `workflow-client` \(web UI\)) Tj
+T*
+(* `mcp-server` \(API/orchestration\)) Tj
+T*
+(* `dq-engine` \(assessment/correction\)) Tj
+T*
+(* Managed PostgreSQL \(HA, backup, PITR\)) Tj
+T*
+(* Ingress/API Gateway + TLS) Tj
+T*
+() Tj
+T*
+(Important production behavior:) Tj
+T*
+() Tj
+T*
+(* Login is required.) Tj
+T*
+(* `LLM Config` tab is hidden in UI.) Tj
+T*
+(* LLM is configured via file only.) Tj
+T*
+() Tj
+T*
+(2. Security Requirements) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* Strong `AUTH_SECRET`) Tj
+T*
+(* `AUTH_MODE=production`) Tj
+T*
+(* `AUTH_REQUIRED=true`) Tj
+T*
+(* Restricted `CORS_ALLOW_ORIGINS`) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Length 2302 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(* Secrets in secret manager \(not Git\)) Tj
+T*
+(* Network policies and least privilege) Tj
+T*
+() Tj
+T*
+(3. Build and Publish Images) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+T*
+(    docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .) Tj
+T*
+(    docker build -f services/mcp-server/Dockerfile -t <registry>/idqe-mcp-server:1.0.0 .) Tj
+T*
+(docker build -f services/workflow-client/Dockerfile -t <registry>/idqe-workflow-client:1.0.0) Tj
+T*
+(services/workflow-client) Tj
+T*
+(    docker push <registry>/idqe-dq-engine:1.0.0) Tj
+T*
+(    docker push <registry>/idqe-mcp-server:1.0.0) Tj
+T*
+(    docker push <registry>/idqe-workflow-client:1.0.0) Tj
+T*
+() Tj
+T*
+(4. Prepare Configuration Files) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* Rules: `config/rules.prod.yaml`) Tj
+T*
+(* LLM: `config/llm.prod.yaml`) Tj
+T*
+() Tj
+T*
+(In production, update only the YAML files and redeploy/restart relevant services.) Tj
+T*
+() Tj
+T*
+(5. Required Environment Variables) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(For `mcp-server`:) Tj
+T*
+() Tj
+T*
+(* `AUTH_MODE=production`) Tj
+T*
+(* `AUTH_REQUIRED=true`) Tj
+T*
+(* `AUTH_SECRET=<strong secret>`) Tj
+T*
+(* `ACCESS_TOKEN_TTL_MINUTES=120` \(or stricter\)) Tj
+T*
+(* `UI_ALLOW_LLM_TAB=false`) Tj
+T*
+(* `CORS_ALLOW_ORIGINS=https://<your-ui-domain>`) Tj
+T*
+(* `DATABASE_URL=postgresql+psycopg2://...`) Tj
+T*
+(* `DQ_ENGINE_URL=http://dq-engine:8001`) Tj
+T*
+() Tj
+T*
+(6. Deploy with Compose \(Production Profile Template\)) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Update image names in `docker-compose.prod.yml`, then run:) Tj
+T*
+() Tj
+T*
+(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+T*
+(    export AUTH_SECRET='<strong secret>') Tj
+T*
+(    export CORS_ALLOW_ORIGINS='https://idqe.company.com') Tj
+T*
+(    docker compose -f docker-compose.prod.yml up -d) Tj
+T*
+() Tj
+T*
+(Use this as a baseline. For enterprise, prefer Kubernetes manifests in `deploy/k8s`.) Tj
+T*
+() Tj
+T*
+(7. Deploy with Kubernetes \(Recommended\)) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. Create namespace:) Tj
+T*
+() Tj
+T*
+(    kubectl apply -f deploy/k8s/namespace.yaml) Tj
+T*
+() Tj
+T*
+(2. Create DB and app secrets:) Tj
+T*
+() Tj
+T*
+(kubectl -n idqe create secret generic idqe-db) Tj
+T*
+(--from-literal=database_url='postgresql+psycopg2://<user>:<pass>@<host>:5432/dq') Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 2141 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(kubectl -n idqe create secret generic idqe-auth --from-literal=auth_secret='<strong secret>') Tj
+T*
+() Tj
+T*
+(3. Create config maps:) Tj
+T*
+() Tj
+T*
+(kubectl -n idqe create configmap idqe-rules --from-file=rules.yaml=config/rules.prod.yaml -o) Tj
+T*
+(yaml --dry-run=client | kubectl apply -f -) Tj
+T*
+(kubectl -n idqe create configmap idqe-llm --from-file=llm.yaml=config/llm.prod.yaml -o yaml) Tj
+T*
+(--dry-run=client | kubectl apply -f -) Tj
+T*
+() Tj
+T*
+(4. Update image references in:) Tj
+T*
+() Tj
+T*
+(* `deploy/k8s/dq-engine.yaml`) Tj
+T*
+(* `deploy/k8s/mcp-server.yaml`) Tj
+T*
+(* `deploy/k8s/workflow-client.yaml`) Tj
+T*
+() Tj
+T*
+(5. Apply manifests:) Tj
+T*
+() Tj
+T*
+(    kubectl apply -f deploy/k8s/dq-engine.yaml) Tj
+T*
+(    kubectl apply -f deploy/k8s/mcp-server.yaml) Tj
+T*
+(    kubectl apply -f deploy/k8s/workflow-client.yaml) Tj
+T*
+() Tj
+T*
+(8. Post-Deployment Validation) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* Health endpoints return `ok`.) Tj
+T*
+(* Login works.) Tj
+T*
+(* Non-admin users cannot access admin features.) Tj
+T*
+(* Workflow runs are user-scoped.) Tj
+T*
+(* Shared MCP servers managed by admin only.) Tj
+T*
+(* LLM tab is not visible in production UI.) Tj
+T*
+() Tj
+T*
+(9. Operations Checklist) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* Backup DB and test restore.) Tj
+T*
+(* Monitor API latency/error rates.) Tj
+T*
+(* Audit admin changes \(users/shared MCP servers\).) Tj
+T*
+(* Rotate secrets regularly.) Tj
+T*
+(* Pin image tags and use controlled rollout.) Tj
+T*
+() Tj
+T*
+(10. Rollback) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* Roll back to previous image tags.) Tj
+T*
+(* Restore prior rules/LLM config.) Tj
+T*
+(* Restart `mcp-server` and `dq-engine`.) Tj
+T*
+(* Re-run smoke tests and critical user flows.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(======================================================================) Tj
+T*
+(USER MANUAL) Tj
+T*
+(/Users/mozesrahangmetan/Documents/DQ/docs/user-manual.md) Tj
+T*
+(======================================================================) Tj
+T*
+() Tj
+T*
+(IDQE USER MANUAL) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(This manual explains how business users, data stewards, and admins use IDQE.) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 1650 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(1. Login and Roles) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(When you open the app, start from Login/Register.) Tj
+T*
+() Tj
+T*
+(* `User` role:) Tj
+T*
+(  - Run workflows) Tj
+T*
+(  - Edit own DQ rules) Tj
+T*
+(  - Manage own MCP server list) Tj
+T*
+(  - Use shared MCP servers) Tj
+T*
+(* `Admin` role:) Tj
+T*
+(  - All user capabilities) Tj
+T*
+(  - Manage users \(role/active\)) Tj
+T*
+(  - Manage shared MCP server catalog) Tj
+T*
+() Tj
+T*
+(2. Main Tabs) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* `Run Workflow`) Tj
+T*
+(* `DQ Rules Editor`) Tj
+T*
+(* `MCP Session`) Tj
+T*
+(* `LLM Config` \(demo/non-production only\)) Tj
+T*
+(* `Help`) Tj
+T*
+(* `Admin` \(admin only\)) Tj
+T*
+() Tj
+T*
+(3. Run Workflow) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Purpose: assess and correct data quality for one or more MCP servers.) Tj
+T*
+() Tj
+T*
+(Steps:) Tj
+T*
+() Tj
+T*
+(1. Select provider and dataset type.) Tj
+T*
+(2. Enter dataset ID.) Tj
+T*
+(3. Select target MCP server\(s\).) Tj
+T*
+(4. Optional: enable auto-correction when data source changes.) Tj
+T*
+(5. Click:) Tj
+T*
+(   - `Preview Dataset`) Tj
+T*
+(   - `Run Assessment`) Tj
+T*
+(   - `Run Correction`) Tj
+T*
+(   - `Workflow History`) Tj
+T*
+() Tj
+T*
+(Outputs include:) Tj
+T*
+() Tj
+T*
+(* quality index) Tj
+T*
+(* failed checks) Tj
+T*
+(* violations) Tj
+T*
+(* corrections applied) Tj
+T*
+() Tj
+T*
+(4. Workflow Analytics) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Click `Workflow Analytics` in `Run Workflow`.) Tj
+T*
+() Tj
+T*
+(Available views:) Tj
+T*
+() Tj
+T*
+(* Quality Index Trend \(line\)) Tj
+T*
+(* Violation Severity Trend \(line\)) Tj
+T*
+(* Rule Application Trend \(existing vs suggested approved vs declined\)) Tj
+T*
+(* Correction Rule Usage split) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Length 1677 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(* DQ Workflow Progress Timeline) Tj
+T*
+() Tj
+T*
+(Filters:) Tj
+T*
+() Tj
+T*
+(* Date range: all, 7, 30, 90 days) Tj
+T*
+(* Analytics server selection) Tj
+T*
+() Tj
+T*
+(Hover on chart points to see detailed popup context.) Tj
+T*
+() Tj
+T*
+(5. DQ Rules Editor) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Purpose: maintain assessment and correction rules in editable form.) Tj
+T*
+() Tj
+T*
+(Steps:) Tj
+T*
+() Tj
+T*
+(1. Click `Load Rules`.) Tj
+T*
+(2. Select or add dataset type.) Tj
+T*
+(3. Edit assessment rules:) Tj
+T*
+(   - id, field, type, severity, params) Tj
+T*
+(4. Edit correction rules:) Tj
+T*
+(   - field, type, default) Tj
+T*
+(5. Click `Save Rules`.) Tj
+T*
+() Tj
+T*
+(Lower section shows:) Tj
+T*
+() Tj
+T*
+(* accepted suggested rules) Tj
+T*
+(* declined suggested rules) Tj
+T*
+() Tj
+T*
+(Use `Refresh Suggestion Decisions` to reload.) Tj
+T*
+() Tj
+T*
+(6. MCP Session) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Purpose: manage active MCP connectivity and server catalogs.) Tj
+T*
+() Tj
+T*
+(Functions:) Tj
+T*
+() Tj
+T*
+(* Connect MCP server by URL) Tj
+T*
+(* Initialize active server) Tj
+T*
+(* List tools/data sources) Tj
+T*
+(* Show data model/dataset/FK relations) Tj
+T*
+() Tj
+T*
+(Server catalogs:) Tj
+T*
+() Tj
+T*
+(* `My MCP Servers`: user-owned list) Tj
+T*
+(* `Shared MCP Servers`: admin-managed shared list) Tj
+T*
+() Tj
+T*
+(Admin users can edit shared catalog in the same tab.) Tj
+T*
+() Tj
+T*
+(7. LLM Configuration \(Demo / Non-Production\)) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(If visible:) Tj
+T*
+() Tj
+T*
+(1. Set provider, model, endpoint, key env, key, temperature.) Tj
+T*
+(2. Save config.) Tj
+T*
+(3. Run assessment to generate rule suggestions \(if enabled\).) Tj
+T*
+() Tj
+T*
+(Production note:) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Length 1099 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+() Tj
+T*
+(* LLM configuration is file-based only.) Tj
+T*
+(* LLM tab is hidden in production UI.) Tj
+T*
+() Tj
+T*
+(8. Suggestion Queue) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(After assessment, suggested rules may appear in a review queue.) Tj
+T*
+() Tj
+T*
+(Actions:) Tj
+T*
+() Tj
+T*
+(* `Approve Suggestion`: stores rule and applies in later runs) Tj
+T*
+(* `Decline Suggestion`: rejects suggestion) Tj
+T*
+(* `Next Suggestion`: move through queue) Tj
+T*
+() Tj
+T*
+(9. Admin Page) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Admins can:) Tj
+T*
+() Tj
+T*
+(* list users) Tj
+T*
+(* change role \(`user` / `admin`\)) Tj
+T*
+(* enable/disable users) Tj
+T*
+() Tj
+T*
+(Changes apply immediately.) Tj
+T*
+() Tj
+T*
+(10. Troubleshooting) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(* If actions fail with auth error:) Tj
+T*
+(  - login again) Tj
+T*
+(* If no data appears:) Tj
+T*
+(  - verify active MCP server and dataset type) Tj
+T*
+(* If run history is empty:) Tj
+T*
+(  - execute at least one assessment/correction first) Tj
+T*
+(* If shared servers missing:) Tj
+T*
+(  - ask admin to configure shared MCP servers) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 3 0 R >>
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 4 0 R >>
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 5 0 R >>
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 6 0 R >>
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 7 0 R >>
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 8 0 R >>
+endobj
+17 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 9 0 R >>
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 10 0 R >>
+endobj
+19 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+xref
+0 20
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000000192 00000 n 
+0000002060 00000 n 
+0000003787 00000 n 
+0000005721 00000 n 
+0000008075 00000 n 
+0000010268 00000 n 
+0000011970 00000 n 
+0000013699 00000 n 
+0000014851 00000 n 
+0000014978 00000 n 
+0000015105 00000 n 
+0000015232 00000 n 
+0000015359 00000 n 
+0000015486 00000 n 
+0000015613 00000 n 
+0000015740 00000 n 
+0000015868 00000 n 
+trailer
+<< /Size 20 /Root 19 0 R >>
+startxref
+15918
+%%EOF

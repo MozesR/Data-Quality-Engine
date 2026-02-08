@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dq-engine
+  namespace: idqe
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dq-engine
+  template:
+    metadata:
+      labels:
+        app: dq-engine
+    spec:
+      containers:
+        - name: dq-engine
+          image: your-registry/idqe-dq-engine:1.0.0
+          ports:
+            - containerPort: 8001
+          env:
+            - name: LLM_CONFIG_PATH
+              value: /app/config/llm.yaml
+          volumeMounts:
+            - name: llm-config
+              mountPath: /app/config
+      volumes:
+        - name: llm-config
+          configMap:
+            name: idqe-llm-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dq-engine
+  namespace: idqe
+spec:
+  selector:
+    app: dq-engine
+  ports:
+    - port: 8001
+      targetPort: 8001

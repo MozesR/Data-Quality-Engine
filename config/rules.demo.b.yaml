@@ -1,0 +1,92 @@
+data_sources:
+- provider: BANK_X
+  dataset_types:
+  - customer_profile
+  - credit_facility
+- provider: BANK_Y
+  dataset_types:
+  - credit_facility
+assessment_rules:
+  customer_profile:
+  - id: RX001
+    field: customer_id
+    type: not_null
+    severity: high
+  - id: RX002
+    field: segment
+    type: allowed_values
+    severity: medium
+    params:
+      values:
+      - SME
+      - CORP
+      - RETAIL
+  - id: RX003
+    field: risk_score
+    type: range
+    severity: high
+    params:
+      min: 0
+      max: 100
+  - id: SUG-2910d265
+    field: customer_id
+    type: allowed_values
+    severity: medium
+    params:
+      values:
+      - X001
+      - X002
+      - X003
+      - X004
+  - id: SUG-6355ff89
+    field: risk_score
+    type: not_null
+    severity: medium
+  - id: SUG-d02b5143
+    field: segment
+    type: not_null
+    severity: medium
+  - id: SUG-ae04784a
+    field: country
+    type: allowed_values
+    severity: medium
+    params:
+      values:
+      - ES
+      - GB
+      - US
+      - USA
+  credit_facility:
+  - id: RX101
+    field: facility_id
+    type: not_null
+    severity: high
+  - id: RX102
+    field: limit_amount
+    type: range
+    severity: high
+    params:
+      min: 0
+      max: 5000000
+  - id: RX103
+    field: dpd
+    type: range
+    severity: medium
+    params:
+      min: 0
+      max: 180
+correction_rules:
+  customer_profile:
+  - field: segment
+    type: fill_default_if_null
+    default: RETAIL
+  - field: customer_id
+    type: fill_default_if_null
+    default: X001
+  - field: country
+    type: fill_default_if_null
+    default: US
+  credit_facility:
+  - field: dpd
+    type: fill_default_if_null
+    default: 1

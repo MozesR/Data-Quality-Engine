@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: idqe
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+    spec:
+      containers:
+        - name: mcp-server
+          image: your-registry/idqe-mcp-server:1.0.0
+          ports:
+            - containerPort: 8002
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: idqe-db
+                  key: database_url
+            - name: DQ_ENGINE_URL
+              value: http://dq-engine:8001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server
+  namespace: idqe
+spec:
+  selector:
+    app: mcp-server
+  ports:
+    - port: 8002
+      targetPort: 8002

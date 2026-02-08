@@ -1,0 +1,52 @@
+services:
+  dq-engine:
+    image: your-registry/idqe-dq-engine:1.0.0
+    environment:
+      LLM_CONFIG_PATH: /app/config/llm.yaml
+    secrets:
+      - openai_api_key
+    configs:
+      - source: llm_prod
+        target: /app/config/llm.yaml
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+
+  mcp-server:
+    image: your-registry/idqe-mcp-server:1.0.0
+    environment:
+      DATABASE_URL: postgresql+psycopg2://dq:${DB_PASSWORD}@postgres-primary:5432/dq
+      DQ_ENGINE_URL: http://dq-engine:8001
+      RULES_CONFIG_PATH: /app/config/rules.yaml
+      LLM_CONFIG_PATH: /app/config/llm.yaml
+      AUTH_MODE: production
+      AUTH_REQUIRED: "true"
+      AUTH_SECRET: ${AUTH_SECRET}
+      ACCESS_TOKEN_TTL_MINUTES: 120
+      UI_ALLOW_LLM_TAB: "false"
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS}
+    configs:
+      - source: rules_prod
+        target: /app/config/rules.yaml
+      - source: llm_prod
+        target: /app/config/llm.yaml
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  workflow-client:
+    image: your-registry/idqe-workflow-client:1.0.0
+    deploy:
+      replicas: 2
+
+configs:
+  llm_prod:
+    file: ./config/llm.prod.yaml
+  rules_prod:
+    file: ./config/rules.prod.yaml
+
+secrets:
+  openai_api_key:
+    external: true

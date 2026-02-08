@@ -1,0 +1,358 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Length 2511 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(INTELLIGENT DATA QUALITY ENGINE \(IDQE\)) Tj
+T*
+() Tj
+T*
+(Enterprise Installation Guide \(Test and Production\)) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Date: February 7, 2026) Tj
+T*
+() Tj
+T*
+(1. Scope) Tj
+T*
+() Tj
+T*
+(This guide describes how to install and operate IDQE in:) Tj
+T*
+(* Enterprise Test environment) Tj
+T*
+(* Enterprise Production environment) Tj
+T*
+() Tj
+T*
+(2. Solution Components) Tj
+T*
+() Tj
+T*
+(* `workflow-client`: web UI \(workflow execution, DQ rules editor, MCP session, LLM config\)) Tj
+T*
+(* `mcp-server`: MCP orchestration/API, data-source access, workflow persistence, suggestion) Tj
+T*
+(approvals) Tj
+T*
+(* `dq-engine`: assessment/correction engine) Tj
+T*
+(* `postgres`: workflow metadata + source data) Tj
+T*
+() Tj
+T*
+(3. Deployment Topology) Tj
+T*
+() Tj
+T*
+(Recommended enterprise topology:) Tj
+T*
+(* Kubernetes namespace `idqe`) Tj
+T*
+(* Ingress/API gateway in front of `workflow-client` and `mcp-server`) Tj
+T*
+(* Managed PostgreSQL \(HA, backups, encryption\)) Tj
+T*
+(* Central secrets management for DB and API keys) Tj
+T*
+(* Observability stack \(logs, metrics, traces\)) Tj
+T*
+() Tj
+T*
+(Manifests provided:) Tj
+T*
+(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/namespace.yaml`) Tj
+T*
+(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/dq-engine.yaml`) Tj
+T*
+(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/mcp-server.yaml`) Tj
+T*
+(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/workflow-client.yaml`) Tj
+T*
+(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/configmap-llm.yaml`) Tj
+T*
+() Tj
+T*
+(4. Prerequisites) Tj
+T*
+() Tj
+T*
+(4.1 Test Environment) Tj
+T*
+(* Non-production Kubernetes cluster) Tj
+T*
+(* Registry access for container images) Tj
+T*
+(* PostgreSQL test database) Tj
+T*
+(* DNS + TLS for test ingress) Tj
+T*
+() Tj
+T*
+(4.2 Production Environment) Tj
+T*
+(* HA Kubernetes cluster) Tj
+T*
+(* Managed PostgreSQL with backup/restore and PITR) Tj
+T*
+(* Secret manager \(Vault/KMS/cloud-native\)) Tj
+T*
+(* WAF/API gateway, network policies, RBAC) Tj
+T*
+(* SIEM/SOC integration for logs and alerts) Tj
+T*
+() Tj
+T*
+(5. Build and Publish Images) Tj
+T*
+() Tj
+T*
+(From repository root:) Tj
+T*
+() Tj
+T*
+(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+T*
+(    docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .) Tj
+T*
+(    docker build -f services/mcp-server/Dockerfile -t <registry>/idqe-mcp-server:1.0.0 .) Tj
+T*
+(docker build -f services/workflow-client/Dockerfile -t <registry>/idqe-workflow-client:1.0.0) Tj
+ET
+endstream
+endobj
+3 0 obj
+<< /Length 2543 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+(services/workflow-client) Tj
+T*
+(    docker push <registry>/idqe-dq-engine:1.0.0) Tj
+T*
+(    docker push <registry>/idqe-mcp-server:1.0.0) Tj
+T*
+(    docker push <registry>/idqe-workflow-client:1.0.0) Tj
+T*
+() Tj
+T*
+(6. Configure Environment Values) Tj
+T*
+() Tj
+T*
+(6.1 DQ Rules) Tj
+T*
+(* Test baseline: `/Users/mozesrahangmetan/Documents/DQ/config/rules.demo.yaml`) Tj
+T*
+(* Production baseline: `/Users/mozesrahangmetan/Documents/DQ/config/rules.prod.yaml`) Tj
+T*
+() Tj
+T*
+(6.2 LLM) Tj
+T*
+(* Test: use `mock` or sandbox API key) Tj
+T*
+(* Production: use `openai` and managed key rotation) Tj
+T*
+(* Config file: `/Users/mozesrahangmetan/Documents/DQ/config/llm.prod.yaml`) Tj
+T*
+() Tj
+T*
+(6.3 Secrets) Tj
+T*
+(Store outside Git:) Tj
+T*
+(* Database URL) Tj
+T*
+(* `OPENAI_API_KEY` \(if enabled\)) Tj
+T*
+() Tj
+T*
+(7. Install to Enterprise Test) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(    kubectl apply -f deploy/k8s/namespace.yaml) Tj
+T*
+(kubectl -n idqe create secret generic idqe-db) Tj
+T*
+(--from-literal=database_url='postgresql+psycopg2://<user>:<pass>@<host>:5432/dq') Tj
+T*
+(kubectl -n idqe create configmap idqe-llm-config --from-file=llm.yaml=config/llm.prod.yaml -o) Tj
+T*
+(yaml --dry-run=client | kubectl apply -f -) Tj
+T*
+(    kubectl apply -f deploy/k8s/dq-engine.yaml) Tj
+T*
+(    kubectl apply -f deploy/k8s/mcp-server.yaml) Tj
+T*
+(    kubectl apply -f deploy/k8s/workflow-client.yaml) Tj
+T*
+() Tj
+T*
+(Before apply, replace image names in manifests with your registry images.) Tj
+T*
+() Tj
+T*
+(8. Test Validation Checklist) Tj
+T*
+() Tj
+T*
+(* UI reachable via ingress) Tj
+T*
+(* `mcp-server` and `dq-engine` health endpoints OK) Tj
+T*
+(* MCP session can connect/list tools) Tj
+T*
+(* Assessment and correction run successfully) Tj
+T*
+(* Workflow history rows open run details) Tj
+T*
+(* DQ rules and LLM config save/load work) Tj
+T*
+(* LLM suggestions appear \(if enabled\), approve/decline persists behavior) Tj
+T*
+() Tj
+T*
+(9. Install to Production) Tj
+T*
+() Tj
+T*
+(Recommended rollout:) Tj
+T*
+(1. Validate in pre-prod with production-like data) Tj
+T*
+(2. Deploy with rolling strategy) Tj
+T*
+(3. Canary release \(10%, 50%, 100%\)) Tj
+T*
+(4. Monitor latency/error/throughput and DQ run success rates) Tj
+T*
+(5. Roll back immediately if SLO thresholds are breached) Tj
+T*
+() Tj
+T*
+(Mandatory controls:) Tj
+T*
+(* TLS everywhere) Tj
+T*
+(* RBAC for rules/LLM edits) Tj
+T*
+(* Audit logs for suggestion approvals/declines) Tj
+T*
+(* Backup and restore tests) Tj
+T*
+(* Alerting on failed workflows and service degradation) Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Length 863 >>
+stream
+BT
+/F1 10 Tf
+50 790 Td
+12 TL
+() Tj
+T*
+(10. Operations) Tj
+T*
+() Tj
+T*
+(Daily tasks:) Tj
+T*
+(* Review failed workflow runs) Tj
+T*
+(* Review pending/approved LLM suggestions) Tj
+T*
+(* Track DQ quality index trends) Tj
+T*
+() Tj
+T*
+(Suggested SLOs:) Tj
+T*
+(* API uptime >= 99.9%) Tj
+T*
+(* Assessment p95 latency < 3s) Tj
+T*
+(* Failed workflow run ratio < 1%) Tj
+T*
+() Tj
+T*
+(11. Rollback Plan) Tj
+T*
+() Tj
+T*
+(* Revert deployments to previous image tags) Tj
+T*
+(* Restore previous rules and LLM config from backup) Tj
+T*
+(* Re-run smoke tests and health checks) Tj
+T*
+() Tj
+T*
+(12. Quick Ops Commands) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(    kubectl -n idqe get pods) Tj
+T*
+(    kubectl -n idqe get svc) Tj
+T*
+(    kubectl -n idqe logs deploy/mcp-server -f) Tj
+T*
+(    kubectl -n idqe logs deploy/dq-engine -f) Tj
+T*
+(    kubectl -n idqe rollout restart deploy/mcp-server) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Pages /Count 3 /Kids [6 0 R 7 0 R 8 0 R] >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 5 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 2 0 R >>
+endobj
+7 0 obj
+<< /Type /Page /Parent 5 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 3 0 R >>
+endobj
+8 0 obj
+<< /Type /Page /Parent 5 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 4 0 R >>
+endobj
+9 0 obj
+<< /Type /Catalog /Pages 5 0 R >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000002648 00000 n 
+0000005243 00000 n 
+0000006157 00000 n 
+0000006226 00000 n 
+0000006352 00000 n 
+0000006478 00000 n 
+0000006604 00000 n 
+trailer
+<< /Size 10 /Root 9 0 R >>
+startxref
+6653
+%%EOF

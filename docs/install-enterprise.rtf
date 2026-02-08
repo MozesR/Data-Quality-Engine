@@ -1,0 +1,160 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Helvetica;}{\f1 Courier;}}
+\fs24
+\b Intelligent Data Quality Engine (IDQE)\b0\line
+\b Installation Guide for Enterprise Test and Production Environments\b0\line
+\line
+Version: 1.0\line
+Date: February 7, 2026\line
+Document Path: /Users/mozesrahangmetan/Documents/DQ/docs/install-enterprise.pdf\line
+\line
+\b 1. Scope\b0\line
+This guide describes how to deploy IDQE in:\line
+- Enterprise Test environment\line
+- Enterprise Production environment\line
+\line
+It covers architecture, prerequisites, security, deployment steps, validation, and operations handover.\line
+\line
+\b 2. Components\b0\line
+IDQE consists of:\line
+- workflow-client (web UI with tabs for workflow, rules editor, MCP session, LLM config)\line
+- mcp-server (MCP orchestration, data source access, workflow tracking, rule/LLM config APIs)\line
+- dq-engine (DQ assessment and correction service)\line
+- PostgreSQL (workflow run metadata and demo/test data source)\line
+\line
+Main configuration files:\line
+- /Users/mozesrahangmetan/Documents/DQ/config/rules.prod.yaml\line
+- /Users/mozesrahangmetan/Documents/DQ/config/llm.prod.yaml\line
+\line
+\b 3. Enterprise Architecture (Recommended)\b0\line
+Use containerized services on Kubernetes:\line
+- Namespace isolation: idqe\line
+- Ingress/API gateway in front of workflow-client and mcp-server\line
+- Managed PostgreSQL (HA, backups, encryption)\line
+- Secret manager for API keys and DB credentials\line
+- Centralized logs, metrics, traces\line
+- CI/CD with signed images and vulnerability scans\line
+\line
+Provided manifests:\line
+- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/namespace.yaml\line
+- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/dq-engine.yaml\line
+- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/mcp-server.yaml\line
+- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/workflow-client.yaml\line
+- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/configmap-llm.yaml\line
+\line
+\b 4. Prerequisites\b0\line
+\b 4.1 Test Environment\b0\line
+- Kubernetes cluster (non-production)\line
+- Container registry and pull access\line
+- PostgreSQL test instance\line
+- DNS route or internal ingress\line
+- TLS certificate for test domain\line
+\line
+\b 4.2 Production Environment\b0\line
+- Production Kubernetes cluster with HA worker pools\line
+- Managed PostgreSQL with PITR backups\line
+- Enterprise secret management (Vault/KMS/cloud secret manager)\line
+- WAF/API gateway and network policies\line
+- SIEM/SOC integration for logs and alerts\line
+- Change management approval before release\line
+\line
+\b 5. Build and Publish Container Images\b0\line
+From repository root:\line
+\f1
+cd /Users/mozesrahangmetan/Documents/DQ\line
+docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .\line
+docker build -f services/mcp-server/Dockerfile -t <registry>/idqe-mcp-server:1.0.0 .\line
+docker build -f services/workflow-client/Dockerfile -t <registry>/idqe-workflow-client:1.0.0 services/workflow-client\line
+docker push <registry>/idqe-dq-engine:1.0.0\line
+docker push <registry>/idqe-mcp-server:1.0.0\line
+docker push <registry>/idqe-workflow-client:1.0.0\line
+\f0
+\line
+\b 6. Configure Environment-Specific Values\b0\line
+\b 6.1 Rules\b0\line
+- Test: start from /Users/mozesrahangmetan/Documents/DQ/config/rules.demo.yaml\line
+- Production: use /Users/mozesrahangmetan/Documents/DQ/config/rules.prod.yaml\line
+\line
+\b 6.2 LLM\b0\line
+- Test: set provider=mock or a sandbox key\line
+- Production: set provider=openai and production key controls\line
+- File: /Users/mozesrahangmetan/Documents/DQ/config/llm.prod.yaml\line
+\line
+\b 6.3 Secrets\b0\line
+Never store API keys in Git.\line
+Store secrets via Kubernetes secrets or external secret manager:\line
+- Database URL\line
+- OPENAI_API_KEY (if openai provider is enabled)\line
+\line
+\b 7. Deploy to Enterprise Test\b0\line
+\f1
+kubectl apply -f deploy/k8s/namespace.yaml\line
+kubectl -n idqe create secret generic idqe-db --from-literal=database_url='postgresql+psycopg2://<user>:<pass>@<host>:5432/dq'\line
+kubectl -n idqe create configmap idqe-llm-config --from-file=llm.yaml=config/llm.prod.yaml -o yaml --dry-run=client | kubectl apply -f -\line
+kubectl apply -f deploy/k8s/dq-engine.yaml\line
+kubectl apply -f deploy/k8s/mcp-server.yaml\line
+kubectl apply -f deploy/k8s/workflow-client.yaml\line
+\f0
+\line
+Update image tags in manifests to your registry path before applying.\line
+\line
+\b 8. Test Environment Validation Checklist\b0\line
+- workflow-client reachable via ingress\line
+- mcp-server and dq-engine health endpoints return status ok\line
+- MCP Session tab can connect and list tools\line
+- Run Workflow executes assessment/correction\line
+- Workflow history row click opens details\line
+- DQ Rules Editor load/save works\line
+- LLM Config load/save works\line
+- Suggestion queue popup appears when LLM enabled\line
+- Approve suggestion persists new rule and affects next runs\line
+\line
+\b 9. Deploy to Production\b0\line
+Production rollout recommendation:\line
+1. Deploy to pre-prod and run full regression\line
+2. Deploy production with rolling update strategy\line
+3. Enable canary traffic (10% then 50% then 100%)\line
+4. Monitor errors, latency, DQ pipeline throughput\line
+5. Execute rollback plan immediately on threshold breach\line
+\line
+Mandatory production controls:\line
+- TLS everywhere (ingress and service mesh where applicable)\line
+- RBAC for rule and LLM config edits\line
+- Audit logging for rule approvals/declines\line
+- Daily backups and tested restore procedure\line
+- Alerting on service health and failed workflow runs\line
+\line
+\b 10. Operations and Support\b0\line
+Daily operations:\line
+- Review failed workflow runs\line
+- Review new LLM suggestions and approval decisions\line
+- Monitor DQ quality index trend\line
+\line
+Recommended SLOs:\line
+- API uptime: 99.9%\line
+- Assessment request p95 latency < 3 seconds\line
+- Failed workflow run rate < 1%\line
+\line
+\b 11. Rollback\b0\line
+- Rollback deployment image tags to last known good release\line
+- Restore previous rules/LLM config from versioned backup\line
+- Verify health and rerun smoke tests\line
+\line
+\b 12. Appendix: Quick Commands\b0\line
+\f1
+# Check pods\line
+kubectl -n idqe get pods\line
+\line
+# Check services\line
+kubectl -n idqe get svc\line
+\line
+# Tail logs\line
+kubectl -n idqe logs deploy/mcp-server -f\line
+kubectl -n idqe logs deploy/dq-engine -f\line
+\line
+# Restart deployment\line
+kubectl -n idqe rollout restart deploy/mcp-server\line
+\f0
+\line
+End of document.\line
+}

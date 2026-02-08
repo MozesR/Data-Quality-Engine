@@ -1,0 +1,123 @@
+services:
+  postgres-a:
+    image: postgres:16-alpine
+    container_name: dq-postgres-a
+    environment:
+      POSTGRES_DB: dq
+      POSTGRES_USER: dq
+      POSTGRES_PASSWORD: dq
+    ports:
+      - "5432:5432"
+    volumes:
+      - dq_postgres_a_data:/var/lib/postgresql/data
+      - ./deploy/sql/init_demo.sql:/docker-entrypoint-initdb.d/init_demo.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dq -d dq"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres-b:
+    image: postgres:16-alpine
+    container_name: dq-postgres-b
+    environment:
+      POSTGRES_DB: dq
+      POSTGRES_USER: dq
+      POSTGRES_PASSWORD: dq
+    ports:
+      - "5433:5432"
+    volumes:
+      - dq_postgres_b_data:/var/lib/postgresql/data
+      - ./deploy/sql/init_demo_b.sql:/docker-entrypoint-initdb.d/init_demo_b.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dq -d dq"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  dq-engine:
+    build:
+      context: .
+      dockerfile: services/dq-engine/Dockerfile
+    container_name: dq-engine
+    environment:
+      LLM_CONFIG_PATH: /app/config/llm.yaml
+    volumes:
+      - ./config/llm.demo.yaml:/app/config/llm.yaml:ro
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres-a:
+        condition: service_healthy
+      postgres-b:
+        condition: service_healthy
+
+  mcp-server-a:
+    build:
+      context: .
+      dockerfile: services/mcp-server/Dockerfile
+    container_name: dq-mcp-server-a
+    environment:
+      MCP_SERVER_NAME: dq-workflow-mcp-a
+      DATABASE_URL: postgresql+psycopg2://dq:dq@postgres-a:5432/dq
+      DQ_ENGINE_URL: http://dq-engine:8001
+      RULES_CONFIG_PATH: /app/config/rules.yaml
+      LLM_CONFIG_PATH: /app/config/llm.yaml
+      AUTH_MODE: demo
+      AUTH_REQUIRED: "false"
+      AUTH_SECRET: demo-secret-change-me
+      UI_ALLOW_LLM_TAB: "true"
+      DEMO_ADMIN_EMAIL: admin@idqe.local
+      DEMO_ADMIN_PASSWORD: Admin123!
+    volumes:
+      - ./config/rules.demo.a.yaml:/app/config/rules.yaml
+      - ./config/llm.demo.yaml:/app/config/llm.yaml
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres-a:
+        condition: service_healthy
+      dq-engine:
+        condition: service_started
+
+  mcp-server-b:
+    build:
+      context: .
+      dockerfile: services/mcp-server/Dockerfile
+    container_name: dq-mcp-server-b
+    environment:
+      MCP_SERVER_NAME: dq-workflow-mcp-b
+      DATABASE_URL: postgresql+psycopg2://dq:dq@postgres-b:5432/dq
+      DQ_ENGINE_URL: http://dq-engine:8001
+      RULES_CONFIG_PATH: /app/config/rules.yaml
+      LLM_CONFIG_PATH: /app/config/llm.yaml
+      AUTH_MODE: demo
+      AUTH_REQUIRED: "false"
+      AUTH_SECRET: demo-secret-change-me
+      UI_ALLOW_LLM_TAB: "true"
+      DEMO_ADMIN_EMAIL: admin@idqe.local
+      DEMO_ADMIN_PASSWORD: Admin123!
+    volumes:
+      - ./config/rules.demo.b.yaml:/app/config/rules.yaml
+      - ./config/llm.demo.yaml:/app/config/llm.yaml
+    ports:
+      - "8003:8002"
+    depends_on:
+      postgres-b:
+        condition: service_healthy
+      dq-engine:
+        condition: service_started
+
+  workflow-client:
+    build:
+      context: ./services/workflow-client
+    container_name: dq-workflow-client
+    ports:
+      - "8080:80"
+    depends_on:
+      - mcp-server-a
+      - mcp-server-b
+
+volumes:
+  dq_postgres_a_data:
+  dq_postgres_b_data:

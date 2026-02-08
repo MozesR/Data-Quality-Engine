@@ -1,0 +1,93 @@
+data_sources:
+- provider: BANK_A
+  dataset_types:
+  - customer_profile
+  - credit_facility
+- provider: BANK_B
+  dataset_types:
+  - customer_profile
+assessment_rules:
+  customer_profile:
+  - id: R001
+    field: customer_id
+    type: not_null
+    severity: high
+  - id: R002
+    field: segment
+    type: allowed_values
+    severity: medium
+    params:
+      values:
+      - SME
+      - CORP
+      - RETAIL
+  - id: R003
+    field: risk_score
+    type: range
+    severity: high
+    params:
+      min: 0
+      max: 100
+  - id: R004
+    field: country
+    type: regex
+    severity: low
+    params:
+      pattern: ^[A-Z]{2}$
+  - id: SUG-9dfb6129
+    field: customer_id
+    type: allowed_values
+    severity: medium
+    params:
+      values:
+      - C001
+      - C002
+      - C003
+  - id: SUG-68524c0d
+    field: segment
+    type: not_null
+    severity: medium
+  - id: SUG-67d78948
+    field: country
+    type: allowed_values
+    severity: medium
+    params:
+      values:
+      - DE
+      - FR
+      - NL
+      - NLD
+  credit_facility:
+  - id: R101
+    field: facility_id
+    type: not_null
+    severity: high
+  - id: R102
+    field: limit_amount
+    type: range
+    severity: high
+    params:
+      min: 0
+      max: 20000000
+  - id: R103
+    field: dpd
+    type: range
+    severity: medium
+    params:
+      min: 0
+      max: 365
+correction_rules:
+  customer_profile:
+  - field: segment
+    type: fill_default_if_null
+    default: SME
+  - field: customer_id
+    type: fill_default_if_null
+    default: C001
+  - field: country
+    type: fill_default_if_null
+    default: NL
+  credit_facility:
+  - field: dpd
+    type: fill_default_if_null
+    default: 0
