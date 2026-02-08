@@ -946,6 +946,19 @@ def get_suggestion_decisions(limit: int = 100, user_id: int | None = None, inclu
                 ),
                 {"limit": limit},
             ).mappings().all()
+        elif user_id is None:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT suggestion_id, dataset_type, decision, suggestion, created_at
+                    FROM suggestion_decisions
+                    WHERE owner_user_id IS NULL
+                    ORDER BY id DESC
+                    LIMIT :limit
+                    """
+                ),
+                {"limit": limit},
+            ).mappings().all()
         else:
             rows = conn.execute(
                 text(
@@ -1243,7 +1256,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": query_dataset(dataset_type, limit)}
 
     if tool == "run_dq_assessment":
-        if user_id is None:
+        if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         dataset_type = args.get("dataset_type", "customer_profile")
         dataset_id = args.get("dataset_id", f"{dataset_type}-{utcnow().strftime('%Y%m%d%H%M%S')}")
@@ -1268,7 +1281,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"run_id": run_id, "result": result}
 
     if tool == "run_correction":
-        if user_id is None:
+        if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         dataset_type = args.get("dataset_type", "customer_profile")
         dataset_id = args.get("dataset_id", f"{dataset_type}-{utcnow().strftime('%Y%m%d%H%M%S')}")
@@ -1290,7 +1303,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"run_id": run_id, "result": result}
 
     if tool == "get_workflow_runs":
-        if user_id is None:
+        if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         include_all = bool(args.get("include_all", False)) and user is not None and user.get("role") == "admin"
         with engine.begin() as conn:
@@ -1307,18 +1320,32 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                     {"limit": int(args.get("limit", 25))},
                 ).mappings().all()
             else:
-                rows = conn.execute(
-                    text(
-                        """
-                        SELECT run_id, dataset_id, dataset_type, provider, process_type, status, created_at
-                        FROM workflow_runs
-                        WHERE owner_user_id = :uid
-                        ORDER BY id DESC
-                        LIMIT :limit
-                        """
-                    ),
-                    {"limit": int(args.get("limit", 25)), "uid": user_id},
-                ).mappings().all()
+                if user_id is None:
+                    rows = conn.execute(
+                        text(
+                            """
+                            SELECT run_id, dataset_id, dataset_type, provider, process_type, status, created_at
+                            FROM workflow_runs
+                            WHERE owner_user_id IS NULL
+                            ORDER BY id DESC
+                            LIMIT :limit
+                            """
+                        ),
+                        {"limit": int(args.get("limit", 25))},
+                    ).mappings().all()
+                else:
+                    rows = conn.execute(
+                        text(
+                            """
+                            SELECT run_id, dataset_id, dataset_type, provider, process_type, status, created_at
+                            FROM workflow_runs
+                            WHERE owner_user_id = :uid
+                            ORDER BY id DESC
+                            LIMIT :limit
+                            """
+                        ),
+                        {"limit": int(args.get("limit", 25)), "uid": user_id},
+                    ).mappings().all()
         data = []
         for r in rows:
             item = dict(r)
@@ -1327,7 +1354,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": data}
 
     if tool == "get_workflow_run_detail":
-        if user_id is None:
+        if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         run_id = args.get("run_id", "")
         if not isinstance(run_id, str) or not run_id.strip():
@@ -1346,7 +1373,13 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
             ).mappings().first()
         if not row:
             raise HTTPException(status_code=404, detail="Workflow run not found")
-        if row.get("owner_user_id") != user_id and (not user or user.get("role") != "admin"):
+        owner_uid = row.get("owner_user_id")
+        if user and user.get("role") == "admin":
+            pass
+        elif user_id is None:
+            if owner_uid is not None:
+                raise HTTPException(status_code=403, detail="Access denied for this workflow run")
+        elif owner_uid != user_id:
             raise HTTPException(status_code=403, detail="Access denied for this workflow run")
         item = dict(row)
         item["created_at"] = item["created_at"].isoformat() if item.get("created_at") else None
@@ -1395,7 +1428,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": {"suggestions": suggestions, "llm_enabled": llm_enabled()}}
 
     if tool == "approve_suggestion":
-        if user_id is None:
+        if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         suggestion_id = args.get("suggestion_id", "")
         if not suggestion_id:
@@ -1403,7 +1436,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": approve_suggestion(suggestion_id, user_id)}
 
     if tool == "decline_suggestion":
-        if user_id is None:
+        if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         suggestion_id = args.get("suggestion_id", "")
         if not suggestion_id:
@@ -1411,7 +1444,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         return {"result": decline_suggestion(suggestion_id, user_id)}
 
     if tool == "get_suggestion_decisions":
-        if user_id is None:
+        if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         include_all = bool(args.get("include_all", False)) and user is not None and user.get("role") == "admin"
         return {"result": get_suggestion_decisions(limit=int(args.get("limit", 100)), user_id=user_id, include_all=include_all)}

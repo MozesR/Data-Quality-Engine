@@ -1,6 +1,6 @@
 services:
   dq-engine:
-    image: your-registry/idqe-dq-engine:1.0.0
+    image: ${DH_USER:?set_DH_USER}/idqe-dq-engine:${TAG:-latest}
     environment:
       LLM_CONFIG_PATH: /app/config/llm.yaml
     secrets:
@@ -14,18 +14,18 @@ services:
         condition: on-failure
 
   mcp-server:
-    image: your-registry/idqe-mcp-server:1.0.0
+    image: ${DH_USER:?set_DH_USER}/idqe-mcp-server:${TAG:-latest}
     environment:
-      DATABASE_URL: postgresql+psycopg2://dq:${DB_PASSWORD}@postgres-primary:5432/dq
+      DATABASE_URL: postgresql+psycopg2://dq:${DB_PASSWORD:?set_DB_PASSWORD}@postgres-primary:5432/dq
       DQ_ENGINE_URL: http://dq-engine:8001
       RULES_CONFIG_PATH: /app/config/rules.yaml
       LLM_CONFIG_PATH: /app/config/llm.yaml
       AUTH_MODE: production
       AUTH_REQUIRED: "true"
-      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_SECRET: ${AUTH_SECRET:?set_AUTH_SECRET}
       ACCESS_TOKEN_TTL_MINUTES: 120
       UI_ALLOW_LLM_TAB: "false"
-      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?set_CORS_ALLOW_ORIGINS}
     configs:
       - source: rules_prod
         target: /app/config/rules.yaml
@@ -37,7 +37,7 @@ services:
         condition: on-failure
 
   workflow-client:
-    image: your-registry/idqe-workflow-client:1.0.0
+    image: ${DH_USER:?set_DH_USER}/idqe-workflow-client:${TAG:-latest}
     deploy:
       replicas: 2
 
