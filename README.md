@@ -25,6 +25,9 @@ Detailed documentation set:
 - Multi-server workflow execution:
   - Run assessment/correction on one or many connected MCP servers in one action.
   - Per-server auth guard checks login on every selected target before execution.
+- Connected MCP server management:
+  - Delete (disconnect) any connected MCP server from `MCP Session`.
+  - Automatically removes it from run targets, analytics targets, and clears its auth session.
 - DQ Rule simulation mode:
   - `Simulate Rules` in `DQ Rules Editor` runs assessment using current in-editor rules without saving.
   - Returns readable simulation summary + violations table.
@@ -43,10 +46,13 @@ Detailed documentation set:
   - `show_dataset`
   - `show_foreign_key_relations`
 - Auth/admin hardening:
-  - Login/register, per-user rule/server configuration, admin user management.
+  - Login/register, per-user rule configuration, admin user management.
   - Write operations require authenticated user.
   - User-scoped workflow runs and suggestion decisions.
   - Login attempt throttling controls (`LOGIN_MAX_ATTEMPTS`, `LOGIN_WINDOW_SECONDS`, `LOGIN_LOCK_SECONDS`).
+  - Last-active-admin protection: prevents deactivating/demoting the final active admin.
+  - High severity suggested rules use two-person approval (owner + peer/admin).
+  - Scheduler job claiming (`FOR UPDATE SKIP LOCKED`) prevents multi-replica duplicate job execution.
 
 ## Architecture
 
@@ -82,7 +88,8 @@ Prerequisites:
 Start:
 
 ```bash
-docker compose -f docker-compose.demo.yml up --build
+cp .env.demo.example .env.demo
+docker compose --env-file .env.demo -f docker-compose.demo.yml up --build
 ```
 
 Open:
@@ -95,13 +102,13 @@ Open:
 Stop:
 
 ```bash
-docker compose -f docker-compose.demo.yml down
+docker compose --env-file .env.demo -f docker-compose.demo.yml down
 ```
 
 Reset database volume:
 
 ```bash
-docker compose -f docker-compose.demo.yml down -v
+docker compose --env-file .env.demo -f docker-compose.demo.yml down -v
 ```
 
 ## LLM configuration
@@ -180,11 +187,11 @@ New auth/admin tools exposed by MCP server:
 - `auth_me`
 - `admin_list_users`
 - `admin_update_user`
-- `get_user_mcp_servers`
-- `save_user_mcp_servers`
-- `list_available_mcp_servers`
 - `admin_list_shared_mcp_servers`
 - `admin_save_shared_mcp_servers`
+- `admin_access_review`
+- `admin_rule_governance`
+- `admin_compliance_report`
 
 Additional workflow/data tools:
 
@@ -226,11 +233,14 @@ Environment flags for integrations:
 Web UI auth/admin:
 
 - Login/Register page gates access to the application
-- `MCP Session` supports per-user MCP server catalogs (`My MCP Servers`)
-- Users can connect to admin-published shared MCP servers (`Shared MCP Servers`)
+- Users can connect to shared MCP servers published by admins (`Shared MCP Servers`)
+- Users can connect to any MCP server by URL (`Connect MCP Server`)
+- Connected servers can be deleted (disconnected) from the UI
 - Admin-only controls:
-  - `Admin` tab for user role/active management
+  - Admin users see a single Admin-only page (no workflow/rules/session tabs)
+  - user role/team/active management
   - shared MCP server catalog editor in `MCP Session`
+  - admin audit log + access/governance/compliance reports
 - Demo default admin credentials:
   - Email: `admin@idqe.local`
   - Password: `Admin123!`

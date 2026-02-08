@@ -44,6 +44,9 @@ PENDING_SUGGESTIONS_RETENTION_DAYS = int(os.getenv("PENDING_SUGGESTIONS_RETENTIO
 ALERT_QUALITY_THRESHOLD = float(os.getenv("ALERT_QUALITY_THRESHOLD", "95"))
 EVENT_WEBHOOK_URL = os.getenv("EVENT_WEBHOOK_URL", "").strip()
 TICKET_WEBHOOK_URL = os.getenv("TICKET_WEBHOOK_URL", "").strip()
+MAX_QUERY_LIMIT = int(os.getenv("MAX_QUERY_LIMIT", "1000"))
+MAX_LIST_LIMIT = int(os.getenv("MAX_LIST_LIMIT", "500"))
+JOB_CLAIM_SECONDS = int(os.getenv("JOB_CLAIM_SECONDS", "300"))
 
 DEFAULT_RULES_CONFIG: dict[str, Any] = {
     "data_sources": [
@@ -155,7 +158,6 @@ user_settings = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("user_id", Integer, nullable=False, unique=True),
     Column("rules_config", JSON, nullable=True),
-    Column("mcp_servers", JSON, nullable=True),
     Column("created_at", DateTime, nullable=False),
     Column("updated_at", DateTime, nullable=False),
 )
@@ -208,6 +210,8 @@ workflow_jobs = Table(
     Column("last_run_at", DateTime, nullable=True),
     Column("last_status", String(32), nullable=True),
     Column("last_message", String(512), nullable=True),
+    Column("claimed_until", DateTime, nullable=True),
+    Column("claimed_by", String(64), nullable=True),
     Column("created_at", DateTime, nullable=False),
     Column("updated_at", DateTime, nullable=False),
 )
@@ -251,6 +255,19 @@ team_policies = Table(
     Column("allowed_server_urls", JSON, nullable=True),
     Column("scoped_admin", Boolean, nullable=False),
     Column("updated_at", DateTime, nullable=False),
+)
+admin_audit_logs = Table(
+    "admin_audit_logs",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("event_id", String(64), nullable=False, unique=True),
+    Column("admin_user_id", Integer, nullable=False),
+    Column("action", String(128), nullable=False),
+    Column("target_type", String(64), nullable=False),
+    Column("target_id", String(128), nullable=True),
+    Column("summary", String(512), nullable=False),
+    Column("details", JSON, nullable=True),
+    Column("created_at", DateTime, nullable=False),
 )
 
 engine = create_engine(DATABASE_URL, future=True)
@@ -311,6 +328,14 @@ def safe_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4()}"
 
 
+def clamp_limit(value: Any, default: int, max_limit: int) -> int:
+    try:
+        n = int(value)
+    except Exception:
+        n = default
+    return max(1, min(max_limit, n))
+
+
 def load_yaml_with_default(path: str, default_obj: dict[str, Any]) -> dict[str, Any]:
     if not os.path.exists(path):
         return default_obj
@@ -334,6 +359,11 @@ def ensure_security_defaults() -> None:
             raise RuntimeError("AUTH_REQUIRED must be true in production mode")
         if AUTH_SECRET == "dev-insecure-secret-change-me":
             raise RuntimeError("AUTH_SECRET must be set to a strong secret in production mode")
+    if AUTH_MODE != "demo":
+        if os.getenv("DEMO_ADMIN_PASSWORD", "") == "Admin123!":
+            raise RuntimeError("DEMO_ADMIN_PASSWORD must not use demo default in non-demo mode")
+        if os.getenv("DEMO_ADMIN_EMAIL", "") == "admin@idqe.local":
+            raise RuntimeError("DEMO_ADMIN_EMAIL must not use demo default in non-demo mode")
 
 
 def enforce_authenticated_write(user: dict[str, Any] | None) -> None:
@@ -505,6 +535,15 @@ def can_manage_user(manager: dict[str, Any], target_team: str) -> bool:
     return str(manager.get("team") or "default") == str(target_team or "default")
 
 
+def get_user_brief(user_id: int) -> dict[str, Any] | None:
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT id, role, team, is_active FROM users WHERE id = :id LIMIT 1"),
+            {"id": user_id},
+        ).mappings().first()
+    return dict(row) if row else None
+
+
 def enforce_team_scope(
     user: dict[str, Any] | None,
     request: Request,
@@ -579,14 +618,13 @@ def ensure_demo_shared_servers() -> None:
 def get_user_settings(user_id: int) -> dict[str, Any]:
     with engine.begin() as conn:
         row = conn.execute(
-            text("SELECT rules_config, mcp_servers FROM user_settings WHERE user_id = :uid LIMIT 1"),
+            text("SELECT rules_config FROM user_settings WHERE user_id = :uid LIMIT 1"),
             {"uid": user_id},
         ).mappings().first()
     if not row:
-        return {"rules_config": None, "mcp_servers": []}
+        return {"rules_config": None}
     return {
         "rules_config": to_jsonable(row.get("rules_config")),
-        "mcp_servers": to_jsonable(row.get("mcp_servers")) or [],
     }
 
 
@@ -605,29 +643,6 @@ def upsert_user_rules_config(user_id: int, config: dict[str, Any]) -> None:
                 user_settings.insert().values(
                     user_id=user_id,
                     rules_config=to_jsonable(config),
-                    mcp_servers=[],
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-
-
-def upsert_user_mcp_servers(user_id: int, servers: list[dict[str, Any]]) -> None:
-    now = utcnow()
-    servers_json = json.dumps(to_jsonable(servers))
-    with engine.begin() as conn:
-        existing = conn.execute(text("SELECT id FROM user_settings WHERE user_id = :uid LIMIT 1"), {"uid": user_id}).mappings().first()
-        if existing:
-            conn.execute(
-                text("UPDATE user_settings SET mcp_servers = :servers, updated_at = :upd WHERE user_id = :uid"),
-                {"servers": servers_json, "upd": now, "uid": user_id},
-            )
-        else:
-            conn.execute(
-                user_settings.insert().values(
-                    user_id=user_id,
-                    rules_config=None,
-                    mcp_servers=to_jsonable(servers),
                     created_at=now,
                     updated_at=now,
                 )
@@ -657,16 +672,6 @@ def sanitize_mcp_server_entries(servers: list[dict[str, Any]], *, require_active
             entry["is_active"] = bool(item.get("is_active", True))
         out.append(entry)
     return out
-
-
-def get_user_mcp_servers(user_id: int | None) -> list[dict[str, Any]]:
-    if user_id is None:
-        return []
-    settings = get_user_settings(user_id)
-    raw = settings.get("mcp_servers", [])
-    if not isinstance(raw, list):
-        return []
-    return sanitize_mcp_server_entries(raw, require_active_flag=False)
 
 
 def get_shared_mcp_servers(include_inactive: bool = False) -> list[dict[str, Any]]:
@@ -718,33 +723,6 @@ def save_shared_mcp_servers(servers: list[dict[str, Any]]) -> None:
             )
 
 
-def list_available_mcp_servers(user_id: int | None) -> list[dict[str, Any]]:
-    user_servers = get_user_mcp_servers(user_id)
-    shared_servers = get_shared_mcp_servers(include_inactive=False)
-    seen: set[str] = set()
-    merged: list[dict[str, Any]] = []
-
-    for item in user_servers:
-        url = item.get("base_url")
-        if not isinstance(url, str) or not url or url in seen:
-            continue
-        seen.add(url)
-        merged.append({"name": item.get("name", "my-server"), "base_url": url, "source": "user", "is_active": True})
-
-    for item in shared_servers:
-        url = str(item.get("base_url") or "")
-        if not url or url in seen:
-            continue
-        seen.add(url)
-        merged.append(
-            {
-                "name": item.get("name", "shared-server"),
-                "base_url": url,
-                "source": "shared",
-                "is_active": bool(item.get("is_active", True)),
-            }
-        )
-    return merged
 
 
 # ---------- business config ----------
@@ -1206,6 +1184,413 @@ def list_team_policies() -> list[dict[str, Any]]:
     return out
 
 
+def audit_admin_action(
+    admin_user_id: int,
+    action: str,
+    target_type: str,
+    target_id: str | None,
+    summary: str,
+    details: dict[str, Any] | None = None,
+) -> str:
+    event_id = safe_id("audit")
+    with engine.begin() as conn:
+        conn.execute(
+            admin_audit_logs.insert().values(
+                event_id=event_id,
+                admin_user_id=admin_user_id,
+                action=action[:128],
+                target_type=target_type[:64],
+                target_id=(target_id or "")[:128] if target_id is not None else None,
+                summary=summary[:512],
+                details=to_jsonable(details or {}),
+                created_at=utcnow(),
+            )
+        )
+    return event_id
+
+
+def list_admin_audit_logs(limit: int = 200) -> list[dict[str, Any]]:
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT event_id, admin_user_id, action, target_type, target_id, summary, details, created_at
+                FROM admin_audit_logs
+                ORDER BY id DESC
+                LIMIT :limit
+                """
+            ),
+            {"limit": limit},
+        ).mappings().all()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        out.append(
+            {
+                "event_id": row.get("event_id"),
+                "admin_user_id": row.get("admin_user_id"),
+                "action": row.get("action"),
+                "target_type": row.get("target_type"),
+                "target_id": row.get("target_id"),
+                "summary": row.get("summary"),
+                "details": to_jsonable(row.get("details")),
+                "created_at": row.get("created_at").isoformat() if row.get("created_at") else None,
+            }
+        )
+    return out
+
+
+def _extract_suggestion_severity(suggestion: Any) -> str:
+    if not isinstance(suggestion, dict):
+        return "unknown"
+    assessment_rule = suggestion.get("assessment_rule")
+    if isinstance(assessment_rule, dict):
+        sev = str(assessment_rule.get("severity", "")).strip().lower()
+        if sev:
+            return sev
+    return "unknown"
+
+
+def build_admin_access_review_report(stale_days: int = 90, audit_limit: int = 200) -> dict[str, Any]:
+    stale_days = max(1, int(stale_days))
+    cutoff = utcnow() - timedelta(days=stale_days)
+    with engine.begin() as conn:
+        users_rows = conn.execute(
+            text("SELECT id, email, name, role, team, is_active, created_at, last_login_at FROM users ORDER BY id ASC")
+        ).mappings().all()
+        policy_rows = conn.execute(
+            text("SELECT team, scoped_admin, allowed_dataset_types, allowed_server_urls, updated_at FROM team_policies ORDER BY team ASC")
+        ).mappings().all()
+        shared_rows = conn.execute(
+            text("SELECT name, base_url, is_active, updated_at FROM shared_mcp_servers ORDER BY id ASC")
+        ).mappings().all()
+    audit_rows = list_admin_audit_logs(limit=max(1, int(audit_limit)))
+
+    teams_with_policy = {str(row.get("team") or "") for row in policy_rows}
+    admins: list[dict[str, Any]] = []
+    stale_accounts: list[dict[str, Any]] = []
+    inactive_accounts: list[dict[str, Any]] = []
+    orphaned_team_users: list[dict[str, Any]] = []
+
+    for row in users_rows:
+        team = str(row.get("team") or "default")
+        created_at = row.get("created_at")
+        last_login_at = row.get("last_login_at")
+        entry = {
+            "user_id": row.get("id"),
+            "email": row.get("email"),
+            "name": row.get("name"),
+            "role": row.get("role"),
+            "team": team,
+            "is_active": bool(row.get("is_active", False)),
+            "created_at": created_at.isoformat() if created_at else None,
+            "last_login_at": last_login_at.isoformat() if last_login_at else None,
+        }
+        if entry["role"] == "admin":
+            admins.append(entry)
+        if not entry["is_active"]:
+            inactive_accounts.append(entry)
+        stale = False
+        if isinstance(last_login_at, datetime):
+            stale = last_login_at < cutoff
+        elif isinstance(created_at, datetime):
+            stale = created_at < cutoff
+        if stale:
+            stale_accounts.append(entry)
+        if team not in teams_with_policy:
+            orphaned_team_users.append(entry)
+
+    recommendations: list[str] = []
+    if stale_accounts:
+        recommendations.append("Review stale accounts and disable or enforce password reset.")
+    if orphaned_team_users:
+        recommendations.append("Create team policies for all teams to enforce least-privilege scope.")
+    if len(admins) == 0:
+        recommendations.append("Create at least one active admin account.")
+    if len([x for x in admins if x.get('is_active')]) > 3:
+        recommendations.append("Consider limiting number of active admins by role separation.")
+
+    active_shared = len([x for x in shared_rows if x.get("is_active")])
+    inactive_shared = len(shared_rows) - active_shared
+
+    return {
+        "generated_at": utcnow().isoformat(),
+        "stale_days": stale_days,
+        "summary": {
+            "total_users": len(users_rows),
+            "active_users": len([x for x in users_rows if x.get("is_active")]),
+            "admins": len(admins),
+            "inactive_accounts": len(inactive_accounts),
+            "stale_accounts": len(stale_accounts),
+            "teams_with_policy": len(policy_rows),
+            "teams_without_policy": len({x.get("team") for x in orphaned_team_users}),
+            "shared_servers_active": active_shared,
+            "shared_servers_inactive": inactive_shared,
+            "recent_admin_events": len(audit_rows),
+        },
+        "admins": admins,
+        "stale_accounts": stale_accounts[:100],
+        "inactive_accounts": inactive_accounts[:100],
+        "orphaned_team_users": orphaned_team_users[:100],
+        "team_policies": [
+            {
+                "team": row.get("team"),
+                "scoped_admin": bool(row.get("scoped_admin", False)),
+                "allowed_dataset_types": parse_json_value(row.get("allowed_dataset_types"), []),
+                "allowed_server_urls": parse_json_value(row.get("allowed_server_urls"), []),
+                "updated_at": row.get("updated_at").isoformat() if row.get("updated_at") else None,
+            }
+            for row in policy_rows
+        ],
+        "recommendations": recommendations,
+    }
+
+
+def build_admin_rule_governance_report(days: int = 30) -> dict[str, Any]:
+    days = max(1, int(days))
+    cutoff = utcnow() - timedelta(days=days)
+    with engine.begin() as conn:
+        decision_rows = conn.execute(
+            text(
+                """
+                SELECT suggestion_id, dataset_type, decision, suggestion, created_at
+                FROM suggestion_decisions
+                WHERE created_at >= :cutoff
+                ORDER BY id DESC
+                """
+            ),
+            {"cutoff": cutoff},
+        ).mappings().all()
+        pending_rows = conn.execute(
+            text(
+                """
+                SELECT suggestion_id, dataset_type, suggestion, status, created_at
+                FROM pending_suggestions_store
+                WHERE status = 'pending'
+                ORDER BY id DESC
+                """
+            )
+        ).mappings().all()
+        approval_rows = conn.execute(
+            text(
+                """
+                SELECT suggestion_id, COUNT(*) AS approvals
+                FROM suggestion_approvals
+                GROUP BY suggestion_id
+                """
+            )
+        ).mappings().all()
+        version_rows = conn.execute(
+            text(
+                """
+                SELECT version_id, note, owner_user_id, created_at
+                FROM rule_versions
+                WHERE created_at >= :cutoff
+                ORDER BY id DESC
+                """
+            ),
+            {"cutoff": cutoff},
+        ).mappings().all()
+        run_rows = conn.execute(
+            text(
+                """
+                SELECT run_id, process_type, result, created_at
+                FROM workflow_runs
+                WHERE created_at >= :cutoff
+                ORDER BY id DESC
+                """
+            ),
+            {"cutoff": cutoff},
+        ).mappings().all()
+
+    approval_counts = {str(row.get("suggestion_id")): int(row.get("approvals", 0) or 0) for row in approval_rows}
+    by_decision: dict[str, int] = {"approved": 0, "declined": 0}
+    severity_breakdown: dict[str, dict[str, int]] = {}
+    high_severity_approved = 0
+
+    for row in decision_rows:
+        decision = str(row.get("decision") or "unknown").lower()
+        by_decision[decision] = by_decision.get(decision, 0) + 1
+        severity = _extract_suggestion_severity(to_jsonable(row.get("suggestion")))
+        severity_breakdown.setdefault(severity, {"approved": 0, "declined": 0, "other": 0})
+        if decision in {"approved", "declined"}:
+            severity_breakdown[severity][decision] += 1
+        else:
+            severity_breakdown[severity]["other"] += 1
+        if severity == "high" and decision == "approved":
+            high_severity_approved += 1
+
+    pending_high: list[dict[str, Any]] = []
+    for row in pending_rows:
+        sid = str(row.get("suggestion_id") or "")
+        suggestion = to_jsonable(row.get("suggestion"))
+        severity = _extract_suggestion_severity(suggestion)
+        if severity != "high":
+            continue
+        pending_high.append(
+            {
+                "suggestion_id": sid,
+                "dataset_type": row.get("dataset_type"),
+                "status": row.get("status"),
+                "approvals": approval_counts.get(sid, 0),
+                "required_approvals": 2,
+                "created_at": row.get("created_at").isoformat() if row.get("created_at") else None,
+            }
+        )
+
+    rollback_events = [x for x in list_admin_audit_logs(limit=500) if x.get("action") == "rollback_rule_version"]
+    canary_runs = 0
+    drift_detected_runs = 0
+    for row in run_rows:
+        result = to_jsonable(row.get("result")) or {}
+        if bool(result.get("canary")):
+            canary_runs += 1
+        drift = result.get("drift") if isinstance(result, dict) else None
+        if isinstance(drift, dict) and drift.get("status") == "drift_detected":
+            drift_detected_runs += 1
+
+    return {
+        "generated_at": utcnow().isoformat(),
+        "window_days": days,
+        "summary": {
+            "suggestions_total": len(decision_rows),
+            "suggestions_approved": by_decision.get("approved", 0),
+            "suggestions_declined": by_decision.get("declined", 0),
+            "high_severity_approved": high_severity_approved,
+            "high_severity_pending": len(pending_high),
+            "rule_versions_created": len(version_rows),
+            "rollbacks": len(rollback_events),
+            "canary_runs": canary_runs,
+            "drift_detected_runs": drift_detected_runs,
+        },
+        "decision_breakdown": by_decision,
+        "severity_breakdown": severity_breakdown,
+        "pending_high_severity": pending_high[:100],
+        "recent_rule_versions": [
+            {
+                "version_id": row.get("version_id"),
+                "note": row.get("note"),
+                "owner_user_id": row.get("owner_user_id"),
+                "created_at": row.get("created_at").isoformat() if row.get("created_at") else None,
+            }
+            for row in version_rows[:50]
+        ],
+        "recent_rollbacks": rollback_events[:50],
+    }
+
+
+def build_admin_compliance_report(days: int = 30) -> dict[str, Any]:
+    days = max(1, int(days))
+    cutoff = utcnow() - timedelta(days=days)
+    with engine.begin() as conn:
+        run_rows = conn.execute(
+            text(
+                """
+                SELECT run_id, dataset_id, dataset_type, provider, process_type, status, result, created_at
+                FROM workflow_runs
+                WHERE created_at >= :cutoff
+                ORDER BY id DESC
+                """
+            ),
+            {"cutoff": cutoff},
+        ).mappings().all()
+        alert_rows = conn.execute(
+            text(
+                """
+                SELECT alert_id, source, severity, message, created_at
+                FROM alerts_store
+                WHERE created_at >= :cutoff
+                ORDER BY id DESC
+                """
+            ),
+            {"cutoff": cutoff},
+        ).mappings().all()
+        audit_rows = conn.execute(
+            text(
+                """
+                SELECT event_id, action, target_type, target_id, created_at
+                FROM admin_audit_logs
+                WHERE created_at >= :cutoff
+                ORDER BY id DESC
+                """
+            ),
+            {"cutoff": cutoff},
+        ).mappings().all()
+
+    assessment_runs = [x for x in run_rows if str(x.get("process_type")) == "assessment"]
+    correction_runs = [x for x in run_rows if str(x.get("process_type")) == "correction"]
+    failed_runs = [x for x in run_rows if str(x.get("status")) != "completed"]
+    quality_scores: list[float] = []
+    corrections_with_lineage = 0
+    for row in correction_runs:
+        result = to_jsonable(row.get("result")) or {}
+        applied = result.get("applied") if isinstance(result, dict) else None
+        if isinstance(applied, list) and applied:
+            has_traceable = any(isinstance(item, dict) and "record_index" in item and "field" in item for item in applied)
+            if has_traceable:
+                corrections_with_lineage += 1
+    for row in assessment_runs:
+        result = to_jsonable(row.get("result")) or {}
+        q = result.get("quality_index") if isinstance(result, dict) else None
+        if isinstance(q, (int, float)):
+            quality_scores.append(float(q))
+
+    avg_quality = round(sum(quality_scores) / len(quality_scores), 2) if quality_scores else None
+    min_quality = round(min(quality_scores), 2) if quality_scores else None
+    sla_alerts = [x for x in alert_rows if str(x.get("source", "")).lower() == "sla"]
+    drift_alerts = [x for x in alert_rows if str(x.get("source", "")).lower() == "drift"]
+    high_alerts = [x for x in alert_rows if str(x.get("severity", "")).lower() == "high"]
+    lineage_coverage_pct = round((corrections_with_lineage / len(correction_runs)) * 100, 2) if correction_runs else 100.0
+
+    return {
+        "generated_at": utcnow().isoformat(),
+        "window_days": days,
+        "summary": {
+            "total_runs": len(run_rows),
+            "assessment_runs": len(assessment_runs),
+            "correction_runs": len(correction_runs),
+            "failed_runs": len(failed_runs),
+            "avg_quality_index": avg_quality,
+            "min_quality_index": min_quality,
+            "alerts_total": len(alert_rows),
+            "alerts_high": len(high_alerts),
+            "sla_breach_alerts": len(sla_alerts),
+            "drift_alerts": len(drift_alerts),
+            "admin_audit_events": len(audit_rows),
+            "lineage_coverage_pct": lineage_coverage_pct,
+        },
+        "failed_runs": [
+            {
+                "run_id": row.get("run_id"),
+                "dataset_type": row.get("dataset_type"),
+                "provider": row.get("provider"),
+                "process_type": row.get("process_type"),
+                "status": row.get("status"),
+                "created_at": row.get("created_at").isoformat() if row.get("created_at") else None,
+            }
+            for row in failed_runs[:100]
+        ],
+        "latest_alerts": [
+            {
+                "alert_id": row.get("alert_id"),
+                "source": row.get("source"),
+                "severity": row.get("severity"),
+                "message": row.get("message"),
+                "created_at": row.get("created_at").isoformat() if row.get("created_at") else None,
+            }
+            for row in alert_rows[:100]
+        ],
+        "latest_audit_events": [
+            {
+                "event_id": row.get("event_id"),
+                "action": row.get("action"),
+                "target": f"{row.get('target_type')}:{row.get('target_id')}",
+                "created_at": row.get("created_at").isoformat() if row.get("created_at") else None,
+            }
+            for row in audit_rows[:100]
+        ],
+    }
+
+
 def write_minimal_pdf(path: Path, title: str, lines: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text_lines = [title] + [line for line in lines if line]
@@ -1254,9 +1639,10 @@ def query_dataset(dataset_type: str, limit: int = 50) -> list[dict[str, Any]]:
     table = table_map.get(dataset_type)
     if not table:
         raise HTTPException(status_code=400, detail=f"Unsupported dataset_type: {dataset_type}")
+    safe_limit = clamp_limit(limit, 50, MAX_QUERY_LIMIT)
     stmt = text(f"SELECT * FROM {table} LIMIT :limit")
     with engine.begin() as conn:
-        rows = conn.execute(stmt, {"limit": limit}).mappings().all()
+        rows = conn.execute(stmt, {"limit": safe_limit}).mappings().all()
     return [to_jsonable(dict(r)) for r in rows]
 
 
@@ -1518,14 +1904,27 @@ def record_suggestion_decision(
         )
 
 
-def approve_suggestion(suggestion_id: str, user_id: int | None) -> dict[str, Any]:
+def approve_suggestion(suggestion_id: str, actor: dict[str, Any] | None) -> dict[str, Any]:
     suggestion = get_pending_suggestion(suggestion_id)
     if not suggestion:
         raise HTTPException(status_code=404, detail="Suggestion not found or expired")
-    if suggestion.get("owner_user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Suggestion belongs to another user")
-    if user_id is None:
+    if not actor:
         raise HTTPException(status_code=401, detail="Authentication required")
+    actor_user_id = int(actor["id"])
+    owner_user_id = suggestion.get("owner_user_id")
+    if owner_user_id is None:
+        raise HTTPException(status_code=400, detail="Suggestion owner is missing")
+    owner_user_id = int(owner_user_id)
+    owner_user = get_user_brief(owner_user_id)
+    if not owner_user:
+        raise HTTPException(status_code=404, detail="Suggestion owner not found")
+    actor_is_owner = actor_user_id == owner_user_id
+    actor_is_admin = str(actor.get("role", "")) == "admin"
+    actor_team = str(actor.get("team") or "default")
+    owner_team = str(owner_user.get("team") or "default")
+    actor_is_peer = actor_team == owner_team
+    if not (actor_is_owner or actor_is_admin or actor_is_peer):
+        raise HTTPException(status_code=403, detail="Only owner/admin/peer can approve this suggestion")
 
     severity = str((suggestion.get("assessment_rule") or {}).get("severity") or "medium").lower()
     if severity == "high":
@@ -1538,37 +1937,44 @@ def approve_suggestion(suggestion_id: str, user_id: int | None) -> dict[str, Any
                     LIMIT 1
                     """
                 ),
-                {"sid": suggestion_id, "uid": user_id},
+                {"sid": suggestion_id, "uid": actor_user_id},
             ).mappings().first()
             if not existing:
                 conn.execute(
                     suggestion_approvals.insert().values(
                         suggestion_id=suggestion_id,
-                        approver_user_id=user_id,
+                        approver_user_id=actor_user_id,
                         created_at=utcnow(),
                     )
                 )
             count_row = conn.execute(
                 text(
                     """
-                    SELECT COUNT(DISTINCT approver_user_id) AS c
+                    SELECT
+                        COUNT(DISTINCT approver_user_id) AS c,
+                        COUNT(*) FILTER (WHERE approver_user_id = :owner_uid) AS owner_approved,
+                        COUNT(*) FILTER (WHERE approver_user_id <> :owner_uid) AS peer_approved
                     FROM suggestion_approvals
                     WHERE suggestion_id = :sid
                     """
                 ),
-                {"sid": suggestion_id},
+                {"sid": suggestion_id, "owner_uid": owner_user_id},
             ).mappings().first()
-        approval_count = int((count_row or {}).get("c", 0))
-        if approval_count < 2:
+        approval_count = int((count_row or {}).get("c", 0) or 0)
+        owner_approved = int((count_row or {}).get("owner_approved", 0) or 0) > 0
+        peer_approved = int((count_row or {}).get("peer_approved", 0) or 0) > 0
+        if not owner_approved or not peer_approved or approval_count < 2:
             return {
-                "message": "High-severity suggestion recorded. Awaiting second approval.",
+                "message": "High-severity suggestion recorded. Awaiting owner + peer/admin two-person approval.",
                 "dataset_type": suggestion.get("dataset_type"),
                 "approval_required": 2,
                 "approval_count": approval_count,
+                "owner_approved": owner_approved,
+                "peer_or_admin_approved": peer_approved,
             }
 
     dataset_type = suggestion["dataset_type"]
-    cfg = load_rules_config_for_user(user_id)
+    cfg = load_rules_config_for_user(owner_user_id)
     cfg["assessment_rules"].setdefault(dataset_type, [])
     cfg["correction_rules"].setdefault(dataset_type, [])
 
@@ -1578,14 +1984,11 @@ def approve_suggestion(suggestion_id: str, user_id: int | None) -> dict[str, Any
         cfg["correction_rules"][dataset_type].append(suggestion["correction_rule"])
 
     validate_rules_config(cfg)
-    if user_id is None:
-        save_yaml(RULES_CONFIG_PATH, cfg)
-    else:
-        upsert_user_rules_config(user_id, cfg)
-    create_rule_version(user_id, cfg, f"approve-suggestion:{suggestion_id}")
+    upsert_user_rules_config(owner_user_id, cfg)
+    create_rule_version(owner_user_id, cfg, f"approve-suggestion:{suggestion_id}")
 
     mark_pending_suggestion_decided(suggestion_id, "approved")
-    record_suggestion_decision(suggestion_id, dataset_type, "approved", suggestion, user_id)
+    record_suggestion_decision(suggestion_id, dataset_type, "approved", suggestion, owner_user_id)
     return {
         "message": "Suggestion approved and saved",
         "dataset_type": dataset_type,
@@ -1594,14 +1997,29 @@ def approve_suggestion(suggestion_id: str, user_id: int | None) -> dict[str, Any
     }
 
 
-def decline_suggestion(suggestion_id: str, user_id: int | None) -> dict[str, Any]:
+def decline_suggestion(suggestion_id: str, actor: dict[str, Any] | None) -> dict[str, Any]:
     suggestion = get_pending_suggestion(suggestion_id)
     if not suggestion:
         raise HTTPException(status_code=404, detail="Suggestion not found or expired")
-    if suggestion.get("owner_user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Suggestion belongs to another user")
+    if not actor:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    actor_user_id = int(actor["id"])
+    owner_user_id = suggestion.get("owner_user_id")
+    if owner_user_id is None:
+        raise HTTPException(status_code=400, detail="Suggestion owner is missing")
+    owner_user_id = int(owner_user_id)
+    owner_user = get_user_brief(owner_user_id)
+    if not owner_user:
+        raise HTTPException(status_code=404, detail="Suggestion owner not found")
+    actor_is_owner = actor_user_id == owner_user_id
+    actor_is_admin = str(actor.get("role", "")) == "admin"
+    actor_team = str(actor.get("team") or "default")
+    owner_team = str(owner_user.get("team") or "default")
+    actor_is_peer = actor_team == owner_team
+    if not (actor_is_owner or actor_is_admin or actor_is_peer):
+        raise HTTPException(status_code=403, detail="Only owner/admin/peer can decline this suggestion")
     mark_pending_suggestion_decided(suggestion_id, "declined")
-    record_suggestion_decision(suggestion_id, str(suggestion.get("dataset_type", "")), "declined", suggestion, user_id)
+    record_suggestion_decision(suggestion_id, str(suggestion.get("dataset_type", "")), "declined", suggestion, owner_user_id)
     return {"message": "Suggestion declined"}
 
 
@@ -1890,12 +2308,18 @@ def ensure_schema_evolution() -> None:
         conn.execute(text("ALTER TABLE suggestion_decisions ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS team VARCHAR(64) DEFAULT 'default'"))
         conn.execute(text("UPDATE users SET team = 'default' WHERE team IS NULL OR team = ''"))
+        conn.execute(text("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS rules_config JSON NULL"))
+        conn.execute(text("ALTER TABLE user_settings DROP COLUMN IF EXISTS mcp_servers"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_workflow_runs_owner_created ON workflow_runs(owner_user_id, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_suggestion_decisions_owner_created ON suggestion_decisions(owner_user_id, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rule_versions_owner_created ON rule_versions(owner_user_id, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_jobs_owner_next ON workflow_jobs(owner_user_id, next_run_at ASC)"))
+        conn.execute(text("ALTER TABLE workflow_jobs ADD COLUMN IF NOT EXISTS claimed_until TIMESTAMP NULL"))
+        conn.execute(text("ALTER TABLE workflow_jobs ADD COLUMN IF NOT EXISTS claimed_by VARCHAR(64) NULL"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_jobs_claimed_until ON workflow_jobs(claimed_until)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_alerts_owner_created ON alerts_store(owner_user_id, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_drift_owner_dataset_created ON drift_baselines(owner_user_id, dataset_type, created_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_logs(created_at DESC)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_suggestion_approvals_sid_uid ON suggestion_approvals(suggestion_id, approver_user_id)"))
         conn.execute(
             text(
@@ -1956,9 +2380,6 @@ def tools_list() -> dict[str, Any]:
             {"name": "auth_me", "description": "Get current user profile"},
             {"name": "admin_list_users", "description": "Admin: list users"},
             {"name": "admin_update_user", "description": "Admin: update role/active state"},
-            {"name": "get_user_mcp_servers", "description": "Get current user's saved MCP servers"},
-            {"name": "save_user_mcp_servers", "description": "Save current user's MCP servers"},
-            {"name": "list_available_mcp_servers", "description": "List available MCP servers (personal + shared active)"},
             {"name": "admin_list_shared_mcp_servers", "description": "Admin: list shared MCP servers"},
             {"name": "admin_save_shared_mcp_servers", "description": "Admin: replace shared MCP servers list"},
             {"name": "list_data_sources", "description": "List configured data providers"},
@@ -1999,6 +2420,10 @@ def tools_list() -> dict[str, Any]:
             {"name": "admin_list_team_policies", "description": "Admin: list team RBAC policies"},
             {"name": "get_integration_status", "description": "Get webhook/integration configuration status"},
             {"name": "send_test_event", "description": "Send a test webhook event"},
+            {"name": "admin_list_audit_logs", "description": "Admin: list audit logs for admin actions"},
+            {"name": "admin_access_review", "description": "Admin: least-privilege and identity/access review report"},
+            {"name": "admin_rule_governance", "description": "Admin: rule governance and approval workflow report"},
+            {"name": "admin_compliance_report", "description": "Admin: compliance status report (audit, lineage, quality)"},
         ]
     }
 
@@ -2118,11 +2543,26 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         if target_user_id <= 0:
             raise HTTPException(status_code=400, detail="user_id is required")
         with engine.begin() as conn:
-            target = conn.execute(text("SELECT team FROM users WHERE id = :id LIMIT 1"), {"id": target_user_id}).mappings().first()
+            target = conn.execute(
+                text("SELECT team, role, is_active FROM users WHERE id = :id LIMIT 1"),
+                {"id": target_user_id},
+            ).mappings().first()
         if not target:
             raise HTTPException(status_code=404, detail="Target user not found")
         if user and not can_manage_user(user, str(target.get("team") or "default")):
             raise HTTPException(status_code=403, detail="Scoped admin policy denies managing this user")
+        target_role = str(target.get("role") or "user")
+        target_active = bool(target.get("is_active", False))
+        next_role = str(role) if role is not None else target_role
+        next_active = bool(is_active) if is_active is not None else target_active
+        if target_role == "admin" and target_active and (next_role != "admin" or not next_active):
+            with engine.begin() as conn:
+                count_row = conn.execute(
+                    text("SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = true")
+                ).mappings().first()
+            active_admins = int((count_row or {}).get("c", 0) or 0)
+            if active_admins <= 1:
+                raise HTTPException(status_code=400, detail="Cannot deactivate or demote the last active admin")
         updates = []
         params: dict[str, Any] = {"id": target_user_id}
         if role is not None:
@@ -2141,27 +2581,16 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail="No update fields provided")
         with engine.begin() as conn:
             conn.execute(text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id"), params)
+        if user:
+            audit_admin_action(
+                int(user["id"]),
+                "admin_update_user",
+                "user",
+                str(target_user_id),
+                f"Updated user {target_user_id}",
+                {"updates": {k: v for k, v in params.items() if k != "id"}},
+            )
         return {"result": {"message": "User updated"}}
-
-    if tool == "get_user_mcp_servers":
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Authentication required")
-        return {"result": {"servers": get_user_mcp_servers(user_id)}}
-
-    if tool == "save_user_mcp_servers":
-        enforce_authenticated_write(user)
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Authentication required")
-        servers = args.get("servers", [])
-        if not isinstance(servers, list):
-            raise HTTPException(status_code=400, detail="servers must be a list")
-        upsert_user_mcp_servers(user_id, sanitize_mcp_server_entries(servers, require_active_flag=False))
-        return {"result": {"message": "MCP servers saved"}}
-
-    if tool == "list_available_mcp_servers":
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Authentication required")
-        return {"result": {"servers": list_available_mcp_servers(user_id)}}
 
     if tool == "admin_list_shared_mcp_servers":
         require_admin(user)
@@ -2174,6 +2603,15 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         if not isinstance(servers, list):
             raise HTTPException(status_code=400, detail="servers must be a list")
         save_shared_mcp_servers(servers)
+        if user:
+            audit_admin_action(
+                int(user["id"]),
+                "admin_save_shared_mcp_servers",
+                "shared_mcp_servers",
+                None,
+                "Replaced shared MCP servers catalog",
+                {"server_count": len(servers)},
+            )
         return {"result": {"message": "Shared MCP servers saved"}}
 
     if tool == "list_data_sources":
@@ -2198,7 +2636,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
     if tool == "show_dataset":
         dataset_type = args.get("dataset_type", "customer_profile")
         enforce_team_scope(user, request, dataset_type=dataset_type)
-        limit = int(args.get("limit", 50))
+        limit = clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT)
         return {"result": query_dataset(dataset_type, limit)}
 
     if tool == "show_foreign_key_relations":
@@ -2207,7 +2645,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
     if tool == "preview_dataset":
         dataset_type = args.get("dataset_type", "customer_profile")
         enforce_team_scope(user, request, dataset_type=dataset_type)
-        limit = int(args.get("limit", 20))
+        limit = clamp_limit(args.get("limit", 20), 20, MAX_QUERY_LIMIT)
         return {"result": query_dataset(dataset_type, limit)}
 
     if tool == "run_dq_assessment":
@@ -2217,7 +2655,13 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         enforce_team_scope(user, request, dataset_type=dataset_type)
         dataset_id = args.get("dataset_id", f"{dataset_type}-{utcnow().strftime('%Y%m%d%H%M%S')}")
         provider = args.get("provider", "BANK_A")
-        _, result = await execute_assessment(dataset_type, dataset_id, provider, int(args.get("limit", 50)), user_id)
+        _, result = await execute_assessment(
+            dataset_type,
+            dataset_id,
+            provider,
+            clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT),
+            user_id,
+        )
         run_id = insert_run(dataset_id, dataset_type, provider, "assessment", "completed", result, user_id)
         return {"run_id": run_id, "result": result}
 
@@ -2228,7 +2672,13 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         enforce_team_scope(user, request, dataset_type=dataset_type)
         dataset_id = args.get("dataset_id", f"{dataset_type}-{utcnow().strftime('%Y%m%d%H%M%S')}")
         provider = args.get("provider", "BANK_A")
-        _, result = await execute_correction(dataset_type, dataset_id, provider, int(args.get("limit", 50)), user_id)
+        _, result = await execute_correction(
+            dataset_type,
+            dataset_id,
+            provider,
+            clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT),
+            user_id,
+        )
         run_id = insert_run(dataset_id, dataset_type, provider, "correction", "completed", result, user_id)
         return {"run_id": run_id, "result": result}
 
@@ -2239,7 +2689,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         enforce_team_scope(user, request, dataset_type=dataset_type)
         dataset_id = args.get("dataset_id", f"{dataset_type}-simulation")
         provider = args.get("provider", "BANK_A")
-        rows = query_dataset(dataset_type, int(args.get("limit", 50)))
+        rows = query_dataset(dataset_type, clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT))
 
         cfg = args.get("config")
         assessment_rules = args.get("assessment_rules")
@@ -2269,7 +2719,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         enforce_team_scope(user, request, dataset_type=dataset_type)
         provider = args.get("provider", "BANK_A")
         dataset_id = args.get("dataset_id", f"{dataset_type}-canary")
-        limit = int(args.get("limit", 200))
+        limit = clamp_limit(args.get("limit", 200), 200, MAX_QUERY_LIMIT)
         rows = query_dataset(dataset_type, limit)
         if not rows:
             return {"result": {"dataset_id": dataset_id, "canary": True, "sample_size": 0, "message": "No records"}}
@@ -2299,7 +2749,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         dataset_type = args.get("dataset_type", "customer_profile")
         enforce_team_scope(user, request, dataset_type=dataset_type)
         provider = args.get("provider", "BANK_A")
-        rows = query_dataset(dataset_type, int(args.get("limit", 200)))
+        rows = query_dataset(dataset_type, clamp_limit(args.get("limit", 200), 200, MAX_QUERY_LIMIT))
         baseline = save_drift_baseline(user_id, provider, dataset_type, rows)
         return {"result": baseline}
 
@@ -2318,7 +2768,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                         LIMIT :limit
                         """
                     ),
-                    {"limit": int(args.get("limit", 25))},
+                    {"limit": clamp_limit(args.get("limit", 25), 25, MAX_LIST_LIMIT)},
                 ).mappings().all()
             else:
                 if user_id is None:
@@ -2332,7 +2782,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                             LIMIT :limit
                             """
                         ),
-                        {"limit": int(args.get("limit", 25))},
+                        {"limit": clamp_limit(args.get("limit", 25), 25, MAX_LIST_LIMIT)},
                     ).mappings().all()
                 else:
                     rows = conn.execute(
@@ -2345,7 +2795,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                             LIMIT :limit
                             """
                         ),
-                        {"limit": int(args.get("limit", 25)), "uid": user_id},
+                        {"limit": clamp_limit(args.get("limit", 25), 25, MAX_LIST_LIMIT), "uid": user_id},
                     ).mappings().all()
         data = []
         for r in rows:
@@ -2481,7 +2931,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
     if tool == "list_rule_versions":
         if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
-        return {"result": list_rule_versions(user_id, limit=int(args.get("limit", 25)))}
+        return {"result": list_rule_versions(user_id, limit=clamp_limit(args.get("limit", 25), 25, MAX_LIST_LIMIT))}
 
     if tool == "get_rule_version":
         if AUTH_REQUIRED and not user:
@@ -2535,7 +2985,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
 
     if tool == "suggest_rules":
         dataset_type = args.get("dataset_type", "customer_profile")
-        rows = query_dataset(dataset_type, int(args.get("limit", 50)))
+        rows = query_dataset(dataset_type, clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT))
         suggestions = generate_rule_suggestions(dataset_type, rows, user_id)
         return {"result": {"suggestions": suggestions, "llm_enabled": llm_enabled()}}
 
@@ -2546,7 +2996,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         suggestion_id = args.get("suggestion_id", "")
         if not suggestion_id:
             raise HTTPException(status_code=400, detail="suggestion_id is required")
-        return {"result": approve_suggestion(suggestion_id, user_id)}
+        return {"result": approve_suggestion(suggestion_id, user)}
 
     if tool == "decline_suggestion":
         enforce_authenticated_write(user)
@@ -2555,19 +3005,25 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         suggestion_id = args.get("suggestion_id", "")
         if not suggestion_id:
             raise HTTPException(status_code=400, detail="suggestion_id is required")
-        return {"result": decline_suggestion(suggestion_id, user_id)}
+        return {"result": decline_suggestion(suggestion_id, user)}
 
     if tool == "get_suggestion_decisions":
         if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         include_all = bool(args.get("include_all", False)) and user is not None and user.get("role") == "admin"
-        return {"result": get_suggestion_decisions(limit=int(args.get("limit", 100)), user_id=user_id, include_all=include_all)}
+        return {
+            "result": get_suggestion_decisions(
+                limit=clamp_limit(args.get("limit", 100), 100, MAX_LIST_LIMIT),
+                user_id=user_id,
+                include_all=include_all,
+            )
+        }
 
     if tool == "list_alerts":
         if AUTH_REQUIRED and not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         include_all = bool(args.get("include_all", False)) and user is not None and user.get("role") == "admin"
-        return {"result": get_alerts(user_id, limit=int(args.get("limit", 100)), include_all=include_all)}
+        return {"result": get_alerts(user_id, limit=clamp_limit(args.get("limit", 100), 100, MAX_LIST_LIMIT), include_all=include_all)}
 
     if tool == "create_workflow_job":
         enforce_authenticated_write(user)
@@ -2601,6 +3057,8 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                     last_run_at=None,
                     last_status=None,
                     last_message=None,
+                    claimed_until=None,
+                    claimed_by=None,
                     created_at=now,
                     updated_at=now,
                 )
@@ -2613,21 +3071,24 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         include_all = bool(args.get("include_all", False)) and user is not None and user.get("role") == "admin"
         with engine.begin() as conn:
             if include_all:
-                rows = conn.execute(text("SELECT * FROM workflow_jobs ORDER BY id DESC LIMIT :limit"), {"limit": int(args.get("limit", 100))}).mappings().all()
+                rows = conn.execute(
+                    text("SELECT * FROM workflow_jobs ORDER BY id DESC LIMIT :limit"),
+                    {"limit": clamp_limit(args.get("limit", 100), 100, MAX_LIST_LIMIT)},
+                ).mappings().all()
             elif user_id is None:
                 rows = conn.execute(
                     text("SELECT * FROM workflow_jobs WHERE owner_user_id IS NULL ORDER BY id DESC LIMIT :limit"),
-                    {"limit": int(args.get("limit", 100))},
+                    {"limit": clamp_limit(args.get("limit", 100), 100, MAX_LIST_LIMIT)},
                 ).mappings().all()
             else:
                 rows = conn.execute(
                     text("SELECT * FROM workflow_jobs WHERE owner_user_id = :uid ORDER BY id DESC LIMIT :limit"),
-                    {"uid": user_id, "limit": int(args.get("limit", 100))},
+                    {"uid": user_id, "limit": clamp_limit(args.get("limit", 100), 100, MAX_LIST_LIMIT)},
                 ).mappings().all()
         jobs = []
         for row in rows:
             item = dict(row)
-            for dt_key in ["next_run_at", "last_run_at", "created_at", "updated_at"]:
+            for dt_key in ["next_run_at", "last_run_at", "claimed_until", "created_at", "updated_at"]:
                 item[dt_key] = item[dt_key].isoformat() if item.get(dt_key) else None
             jobs.append(to_jsonable(item))
         return {"result": jobs}
@@ -2655,21 +3116,86 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         enforce_authenticated_write(user)
         include_all = bool(args.get("include_all", False)) and user is not None and user.get("role") == "admin"
         now = utcnow()
+        claim_until = now + timedelta(seconds=JOB_CLAIM_SECONDS)
+        claimer = f"{MCP_SERVER_NAME}:{uuid.uuid4().hex[:8]}"
+        limit = clamp_limit(args.get("limit", 20), 20, MAX_LIST_LIMIT)
         with engine.begin() as conn:
             if include_all:
                 rows = conn.execute(
-                    text("SELECT * FROM workflow_jobs WHERE is_active = true AND next_run_at <= :now ORDER BY next_run_at ASC LIMIT :limit"),
-                    {"now": now, "limit": int(args.get("limit", 20))},
+                    text(
+                        """
+                        WITH due AS (
+                          SELECT id
+                          FROM workflow_jobs
+                          WHERE is_active = true
+                            AND next_run_at <= :now
+                            AND (claimed_until IS NULL OR claimed_until < :now)
+                          ORDER BY next_run_at ASC
+                          FOR UPDATE SKIP LOCKED
+                          LIMIT :limit
+                        )
+                        UPDATE workflow_jobs j
+                        SET claimed_until = :claim_until,
+                            claimed_by = :claimer,
+                            updated_at = :now
+                        FROM due
+                        WHERE j.id = due.id
+                        RETURNING j.*
+                        """
+                    ),
+                    {"now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
                 ).mappings().all()
             elif user_id is None:
                 rows = conn.execute(
-                    text("SELECT * FROM workflow_jobs WHERE owner_user_id IS NULL AND is_active = true AND next_run_at <= :now ORDER BY next_run_at ASC LIMIT :limit"),
-                    {"now": now, "limit": int(args.get("limit", 20))},
+                    text(
+                        """
+                        WITH due AS (
+                          SELECT id
+                          FROM workflow_jobs
+                          WHERE owner_user_id IS NULL
+                            AND is_active = true
+                            AND next_run_at <= :now
+                            AND (claimed_until IS NULL OR claimed_until < :now)
+                          ORDER BY next_run_at ASC
+                          FOR UPDATE SKIP LOCKED
+                          LIMIT :limit
+                        )
+                        UPDATE workflow_jobs j
+                        SET claimed_until = :claim_until,
+                            claimed_by = :claimer,
+                            updated_at = :now
+                        FROM due
+                        WHERE j.id = due.id
+                        RETURNING j.*
+                        """
+                    ),
+                    {"now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
                 ).mappings().all()
             else:
                 rows = conn.execute(
-                    text("SELECT * FROM workflow_jobs WHERE owner_user_id = :uid AND is_active = true AND next_run_at <= :now ORDER BY next_run_at ASC LIMIT :limit"),
-                    {"uid": user_id, "now": now, "limit": int(args.get("limit", 20))},
+                    text(
+                        """
+                        WITH due AS (
+                          SELECT id
+                          FROM workflow_jobs
+                          WHERE owner_user_id = :uid
+                            AND is_active = true
+                            AND next_run_at <= :now
+                            AND (claimed_until IS NULL OR claimed_until < :now)
+                          ORDER BY next_run_at ASC
+                          FOR UPDATE SKIP LOCKED
+                          LIMIT :limit
+                        )
+                        UPDATE workflow_jobs j
+                        SET claimed_until = :claim_until,
+                            claimed_by = :claimer,
+                            updated_at = :now
+                        FROM due
+                        WHERE j.id = due.id
+                        RETURNING j.*
+                        """
+                    ),
+                    {"uid": user_id, "now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
                 ).mappings().all()
         executed: list[dict[str, Any]] = []
         for row in rows:
@@ -2682,7 +3208,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                         str(item.get("dataset_type")),
                         str(item.get("dataset_id")),
                         str(item.get("provider")),
-                        int(args.get("limit", 50)),
+                        clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT),
                         owner_uid,
                     )
                     run_id = insert_run(
@@ -2709,7 +3235,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                         str(item.get("dataset_type")),
                         str(item.get("dataset_id")),
                         str(item.get("provider")),
-                        int(args.get("limit", 50)),
+                        clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT),
                         owner_uid,
                     )
                     insert_run(
@@ -2730,6 +3256,8 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                                 last_status = 'completed',
                                 last_message = :message,
                                 next_run_at = :next_run,
+                                claimed_until = NULL,
+                                claimed_by = NULL,
                                 updated_at = :now
                             WHERE job_id = :job_id
                             """
@@ -2752,6 +3280,8 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                                 last_status = 'failed',
                                 last_message = :message,
                                 next_run_at = :next_run,
+                                claimed_until = NULL,
+                                claimed_by = NULL,
                                 updated_at = :now
                             WHERE job_id = :job_id
                             """
@@ -2830,11 +3360,45 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
             [str(x).rstrip("/") for x in server_urls if str(x).strip()],
             bool(args.get("scoped_admin", False)),
         )
+        if user:
+            audit_admin_action(
+                int(user["id"]),
+                "admin_set_team_policy",
+                "team_policy",
+                team,
+                f"Updated team policy for {team}",
+                {
+                    "allowed_dataset_types": [str(x) for x in dataset_types if str(x).strip()],
+                    "allowed_server_urls": [str(x).rstrip("/") for x in server_urls if str(x).strip()],
+                    "scoped_admin": bool(args.get("scoped_admin", False)),
+                },
+            )
         return {"result": {"message": "Team policy saved", "team": team}}
 
     if tool == "admin_list_team_policies":
         require_admin(user)
         return {"result": list_team_policies()}
+
+    if tool == "admin_list_audit_logs":
+        require_admin(user)
+        return {"result": list_admin_audit_logs(limit=clamp_limit(args.get("limit", 200), 200, MAX_LIST_LIMIT))}
+
+    if tool == "admin_access_review":
+        require_admin(user)
+        return {
+            "result": build_admin_access_review_report(
+                stale_days=clamp_limit(args.get("stale_days", 90), 90, 3650),
+                audit_limit=clamp_limit(args.get("audit_limit", 200), 200, MAX_LIST_LIMIT),
+            )
+        }
+
+    if tool == "admin_rule_governance":
+        require_admin(user)
+        return {"result": build_admin_rule_governance_report(days=clamp_limit(args.get("days", 30), 30, 3650))}
+
+    if tool == "admin_compliance_report":
+        require_admin(user)
+        return {"result": build_admin_compliance_report(days=clamp_limit(args.get("days", 30), 30, 3650))}
 
     if tool == "get_integration_status":
         if AUTH_REQUIRED and not user:

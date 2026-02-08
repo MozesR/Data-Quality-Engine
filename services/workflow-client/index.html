@@ -747,15 +747,6 @@
 
         <div class="grid">
           <div class="card">
-            <h3>My MCP Servers</h3>
-            <p class="small">Create your own MCP server list and save it to your account.</p>
-            <div id="myServersEditor">No personal servers configured.</div>
-            <button class="ghost" onclick="addMyServerRow()">Add Row</button>
-            <button onclick="saveMyServers()">Save My Servers</button>
-            <button class="secondary" onclick="loadAvailableMcpServers()">Refresh Server Catalog</button>
-          </div>
-
-          <div class="card">
             <h3>Shared MCP Servers</h3>
             <p class="small">Connect to servers published for all users.</p>
             <div id="sharedServersList">No shared servers available.</div>
@@ -887,10 +878,83 @@
 
       <section id="tab-admin" class="tab">
         <div class="card">
-          <h3>Admin User Management</h3>
-          <p class="small">Visible for admin users. Manage role and active state for all users.</p>
-          <button class="ghost" onclick="adminLoadUsers()">Refresh Users</button>
-          <div id="adminUsersView" style="margin-top:10px;">Admin users table not loaded.</div>
+          <h3>Admin Dashboard</h3>
+          <p class="small">Central controls for users, teams, shared MCP servers, jobs, and alerts.</p>
+          <button class="ghost" onclick="adminRefreshAll()">Refresh Admin Dashboard</button>
+          <div id="adminOverview" style="margin-top:10px;">Admin overview not loaded.</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <h3>User & Access Management</h3>
+            <p class="small">Manage user role, team, and active state.</p>
+            <button class="ghost" onclick="adminLoadUsers()">Refresh Users</button>
+            <div id="adminUsersView" style="margin-top:10px;">Admin users table not loaded.</div>
+          </div>
+
+          <div class="card">
+            <h3>Team Policy Management</h3>
+            <p class="small">Set per-team dataset/server scope and scoped-admin mode.</p>
+            <label>Team</label>
+            <input id="adminPolicyTeam" value="default" />
+            <label>Allowed Dataset Types (comma-separated)</label>
+            <input id="adminPolicyDatasets" value="customer_profile,credit_facility" />
+            <label>Allowed Server URLs (comma-separated, use * for any)</label>
+            <input id="adminPolicyServers" value="*" />
+            <div class="check-row">
+              <input type="checkbox" id="adminPolicyScopedAdmin" />
+              <label for="adminPolicyScopedAdmin" style="margin:0;">Scoped admin (admins can only manage users in same team)</label>
+            </div>
+            <button onclick="adminSaveTeamPolicyUi()">Save Team Policy</button>
+            <button class="ghost" onclick="adminLoadTeamPoliciesUi()">Refresh Team Policies</button>
+            <div id="adminTeamPoliciesView" style="margin-top:10px;">No team policies loaded.</div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <h3>Shared MCP Server Catalog</h3>
+            <p class="small">Quickly review shared server entries maintained in MCP Session.</p>
+            <button class="ghost" onclick="loadAvailableMcpServers()">Refresh Shared Servers</button>
+            <div id="adminSharedServersSummary" style="margin-top:10px;">No shared server summary loaded.</div>
+          </div>
+          <div class="card">
+            <h3>Operational Controls</h3>
+            <p class="small">Run due jobs and inspect alerts from admin page.</p>
+            <button class="ghost" onclick="runDueJobsUi()">Run Due Jobs</button>
+            <button class="ghost" onclick="loadWorkflowJobsUi()">Refresh Jobs</button>
+            <button class="ghost" onclick="loadAlertsUi()">Refresh Alerts</button>
+            <div id="adminOpsSummary" style="margin-top:10px;">No operational summary loaded.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Admin Audit Log</h3>
+          <p class="small">Tracks critical admin actions for governance and traceability.</p>
+          <button class="ghost" onclick="loadAdminAuditLogsUi()">Refresh Audit Log</button>
+          <div id="adminAuditView" style="margin-top:10px;">No audit log loaded.</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <h3>Access Review Report</h3>
+            <p class="small">Least-privilege posture, stale accounts, and team policy coverage.</p>
+            <button class="ghost" onclick="loadAdminAccessReviewUi()">Refresh Access Review</button>
+            <div id="adminAccessReviewView" style="margin-top:10px;">No access review report loaded.</div>
+          </div>
+          <div class="card">
+            <h3>Rule Governance Report</h3>
+            <p class="small">Suggestion approvals, high-severity workflow, versions, and rollbacks.</p>
+            <button class="ghost" onclick="loadAdminRuleGovernanceUi()">Refresh Governance</button>
+            <div id="adminRuleGovernanceView" style="margin-top:10px;">No governance report loaded.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Compliance Report</h3>
+          <p class="small">Quality, SLA alerts, audit events, and lineage coverage for recent runs.</p>
+          <button class="ghost" onclick="loadAdminComplianceUi()">Refresh Compliance</button>
+          <div id="adminComplianceView" style="margin-top:10px;">No compliance report loaded.</div>
         </div>
       </section>
       </div>
@@ -926,7 +990,6 @@
       let rulesConfigState = { data_sources: [], assessment_rules: {}, correction_rules: {} };
       let authSessionsByServer = {};
       let adminUsersCache = [];
-      let myMcpServersState = [];
       let sharedMcpServersState = [];
       let adminSharedMcpServersState = [];
       let analyticsSelectedServers = new Set();
@@ -938,6 +1001,27 @@
         ["run", "rules", "session", "llm", "governance", "help", "admin"].forEach(t => {
           document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
           document.getElementById(`tab-btn-${t}`).classList.toggle("active", t === tab);
+        });
+      }
+
+      function setTabVisibilityForCurrentRole() {
+        const session = getAuthSession(activeMcpBase);
+        const isAdmin = !!(session && session.user && session.user.role === "admin");
+        const tabIds = ["run", "rules", "session", "llm", "governance", "help", "admin"];
+        tabIds.forEach((t) => {
+          const btn = document.getElementById(`tab-btn-${t}`);
+          if (!btn) return;
+          if (isAdmin) {
+            btn.style.display = (t === "admin") ? "inline-block" : "none";
+          } else {
+            if (t === "admin") {
+              btn.style.display = "none";
+            } else if (t === "llm") {
+              btn.style.display = isLlmTabEnabledForActiveServer() ? "inline-block" : "none";
+            } else {
+              btn.style.display = "inline-block";
+            }
+          }
         });
       }
 
@@ -976,6 +1060,8 @@
       function renderWorkflowJobs(html) { document.getElementById("workflowJobsView").innerHTML = html; }
       function renderAlerts(html) { document.getElementById("alertsView").innerHTML = html; }
       function renderIntegrationStatus(html) { document.getElementById("integrationStatusView").innerHTML = html; }
+      function renderAdminOverview(html) { document.getElementById("adminOverview").innerHTML = html; }
+      function renderAdminAudit(html) { document.getElementById("adminAuditView").innerHTML = html; }
       function renderError(htmlTargetFn, message) { htmlTargetFn(`<div class="err"><strong>Error:</strong> ${escapeHtml(message)}</div>`); }
       function renderSuggestionDetail(html) { document.getElementById("rulesStatus").innerHTML = html; }
 
@@ -1435,21 +1521,22 @@
         const session = getAuthSession(activeMcpBase);
         const el = document.getElementById("authStatus");
         const logoutBtn = document.getElementById("logoutBtn");
-        const adminTabBtn = document.getElementById("tab-btn-admin");
         const adminSharedPanel = document.getElementById("adminSharedServersPanel");
         if (!session || !session.user) {
           el.textContent = `Not logged in (${activeMcpBase})`;
           if (logoutBtn) logoutBtn.style.display = "none";
-          if (adminTabBtn) adminTabBtn.style.display = "none";
           if (adminSharedPanel) adminSharedPanel.style.display = "none";
+          setTabVisibilityForCurrentRole();
           return;
         }
         const user = session.user;
         el.textContent = `${user.name} (${user.role}) @ ${activeMcpBase}`;
         if (logoutBtn) logoutBtn.style.display = "inline-block";
-        if (adminTabBtn) adminTabBtn.style.display = (user.role === "admin") ? "inline-block" : "none";
         if (adminSharedPanel) adminSharedPanel.style.display = (user.role === "admin") ? "block" : "none";
-        if (user.role !== "admin") {
+        setTabVisibilityForCurrentRole();
+        if (user.role === "admin") {
+          switchTab("admin");
+        } else {
           const adminTab = document.getElementById("tab-admin");
           if (adminTab && adminTab.classList.contains("active")) switchTab("run");
         }
@@ -1470,8 +1557,13 @@
       function showAppPage() {
         document.getElementById("authPage").style.display = "none";
         document.getElementById("appRoot").style.display = "block";
-        switchTab("run");
         refreshAuthStatus();
+        const session = getAuthSession(activeMcpBase);
+        if (session && session.user && session.user.role === "admin") {
+          switchTab("admin");
+        } else {
+          switchTab("run");
+        }
       }
 
       function ensureLoggedIn(contextLabel = "this action", renderer = null) {
@@ -1530,6 +1622,23 @@
           authMe({ silent: true }).catch(() => {});
           adminLoadUsers().catch(() => {});
         }
+      }
+
+      function disconnectServer(url) {
+        const base = normalizeBaseUrl(url);
+        connectedServers = connectedServers.filter(s => s.url !== base);
+        selectedRunServers.delete(base);
+        analyticsSelectedServers.delete(base);
+        clearAuthSession(base);
+
+        if (activeMcpBase === base) {
+          const next = connectedServers[0]?.url || defaultMcpBase;
+          activeMcpBase = normalizeBaseUrl(next);
+          updateActiveServerLabel();
+          refreshAuthStatus();
+          applyUiCapabilitiesForActiveServer();
+        }
+        renderConnectedServers();
       }
 
       function renderRunServerSelector() {
@@ -1591,7 +1700,10 @@
             <div class="server-card">
               <div class="server-card-head">
                 <div class="server-name">${escapeHtml(s.name || "unknown")}</div>
-                <div>${action}</div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  ${action}
+                  <button class="danger" onclick="disconnectServer('${escapeHtml(s.url)}')">Delete</button>
+                </div>
               </div>
               <div class="server-meta">URL<br/><strong>${escapeHtml(s.url)}</strong></div>
               <div class="server-meta">VERSION<br/><strong>${escapeHtml(s.version || "-")}</strong></div>
@@ -1616,12 +1728,15 @@
       }
 
       function applyUiCapabilitiesForActiveServer() {
-        const llmBtn = document.getElementById("tab-btn-llm");
         const enabled = isLlmTabEnabledForActiveServer();
-        if (llmBtn) llmBtn.style.display = enabled ? "inline-block" : "none";
+        const session = getAuthSession(activeMcpBase);
+        const isAdmin = !!(session && session.user && session.user.role === "admin");
+        const llmBtn = document.getElementById("tab-btn-llm");
+        if (llmBtn && !isAdmin) llmBtn.style.display = enabled ? "inline-block" : "none";
         if (!enabled && document.getElementById("tab-llm").classList.contains("active")) {
           switchTab("run");
         }
+        setTabVisibilityForCurrentRole();
       }
 
       function renderAnalyticsServerSelector() {
@@ -1691,60 +1806,7 @@
         };
       }
 
-      function renderMyServersEditor() {
-        const el = document.getElementById("myServersEditor");
-        if (!myMcpServersState.length) {
-          el.innerHTML = "<p>No personal servers configured.</p>";
-          return;
-        }
-        const head = "<tr><th>Name</th><th>Base URL</th><th>Action</th></tr>";
-        const body = myMcpServersState.map((s, idx) => `
-          <tr>
-            <td><input value="${escapeHtml(s.name || "")}" onchange="updateMyServerField(${idx}, 'name', this.value)" /></td>
-            <td><input value="${escapeHtml(s.base_url || "")}" onchange="updateMyServerField(${idx}, 'base_url', this.value)" /></td>
-            <td>
-              <button class="ghost" onclick="connectMyServer(${idx})">Connect</button>
-              <button class="ghost" onclick="removeMyServerRow(${idx})">Delete</button>
-            </td>
-          </tr>
-        `).join("");
-        el.innerHTML = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
-      }
-
-      function updateMyServerField(index, key, value) {
-        if (!myMcpServersState[index]) return;
-        if (key === "base_url") {
-          myMcpServersState[index][key] = normalizeBaseUrl(value);
-        } else {
-          myMcpServersState[index][key] = String(value || "");
-        }
-      }
-
-      function addMyServerRow() {
-        myMcpServersState.push({ name: "my-mcp-server", base_url: "", is_active: true, source: "user" });
-        renderMyServersEditor();
-      }
-
-      function removeMyServerRow(index) {
-        myMcpServersState.splice(index, 1);
-        renderMyServersEditor();
-      }
-
-      async function connectMyServer(index) {
-        try {
-          if (!ensureLoggedIn("Connect My MCP Server", renderSession)) return;
-          const row = myMcpServersState[index];
-          const normalized = normalizeServerEntry(row, "user");
-          if (!normalized) {
-            renderSession(`<div class="err">Please provide a valid server URL (http/https).</div>`);
-            return;
-          }
-          const data = await connectServer(normalized.base_url);
-          renderSession(`<div class="ok"><strong>Connected:</strong> ${escapeHtml(data.server)} at ${escapeHtml(normalized.base_url)}</div>`);
-        } catch (e) {
-          renderError(renderSession, parseErrorMessage(e));
-        }
-      }
+      // "My MCP Servers" feature removed (connect via manual URL or shared catalog).
 
       function renderSharedServersList() {
         const el = document.getElementById("sharedServersList");
@@ -1860,35 +1922,16 @@
         }
       }
 
-      async function saveMyServers() {
-        try {
-          if (!ensureLoggedIn("Save My MCP Servers", renderSession)) return;
-          const payload = myMcpServersState
-            .map(s => normalizeServerEntry(s, "user"))
-            .filter(Boolean)
-            .map(s => ({ name: s.name, base_url: s.base_url }));
-          await mcpCall("save_user_mcp_servers", { servers: payload });
-          renderSession(`<div class="ok">Your MCP server catalog was saved.</div>`);
-          await loadAvailableMcpServers();
-        } catch (e) {
-          renderError(renderSession, parseErrorMessage(e));
-        }
-      }
-
       async function loadAvailableMcpServers() {
         try {
           if (!ensureLoggedIn("Load MCP Server Catalog", renderSession)) return;
-          const personalResp = await mcpCall("get_user_mcp_servers", {});
-          myMcpServersState = ((personalResp.result || {}).servers || [])
-            .map(s => normalizeServerEntry(s, "user"))
-            .filter(Boolean);
-          renderMyServersEditor();
-
-          const availableResp = await mcpCall("list_available_mcp_servers", {});
+          // Shared catalog is the only persisted catalog now.
+          const availableResp = await mcpCall("admin_list_shared_mcp_servers", {});
           const all = ((availableResp.result || {}).servers || [])
-            .map(s => normalizeServerEntry(s, s.source || "shared"))
-            .filter(Boolean);
-          sharedMcpServersState = all.filter(s => s.source === "shared" && s.is_active !== false);
+            .map(s => normalizeServerEntry(s, "shared"))
+            .filter(Boolean)
+            .map(s => ({ ...s, is_active: s.is_active !== false }));
+          sharedMcpServersState = all.filter(s => s.is_active !== false);
           renderSharedServersList();
 
           const session = getAuthSession(activeMcpBase);
@@ -2039,11 +2082,17 @@
       function authLogout() {
         clearAuthSession(activeMcpBase);
         adminUsersCache = [];
-        myMcpServersState = [];
         sharedMcpServersState = [];
         adminSharedMcpServersState = [];
+        document.getElementById("adminOverview").innerHTML = "Admin overview not loaded.";
         document.getElementById("adminUsersView").innerHTML = "Admin users table not loaded.";
-        document.getElementById("myServersEditor").innerHTML = "No personal servers configured.";
+        document.getElementById("adminTeamPoliciesView").innerHTML = "No team policies loaded.";
+        document.getElementById("adminSharedServersSummary").innerHTML = "No shared server summary loaded.";
+        document.getElementById("adminOpsSummary").innerHTML = "No operational summary loaded.";
+        document.getElementById("adminAuditView").innerHTML = "No audit log loaded.";
+        document.getElementById("adminAccessReviewView").innerHTML = "No access review report loaded.";
+        document.getElementById("adminRuleGovernanceView").innerHTML = "No governance report loaded.";
+        document.getElementById("adminComplianceView").innerHTML = "No compliance report loaded.";
         document.getElementById("sharedServersList").innerHTML = "No shared servers available.";
         document.getElementById("adminSharedServersEditor").innerHTML = "No shared server rows.";
         showAuthPage(`<div class="ok">Logged out from ${escapeHtml(activeMcpBase)}</div>`);
@@ -2054,7 +2103,7 @@
           document.getElementById("adminUsersView").innerHTML = "<p>No users found or admin access missing.</p>";
           return;
         }
-        const head = "<tr><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th>Created</th><th>Last Login</th><th>Action</th></tr>";
+        const head = "<tr><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th>Team</th><th>Active</th><th>Created</th><th>Last Login</th><th>Action</th></tr>";
         const body = users.map((u) => `
           <tr>
             <td>${escapeHtml(u.id)}</td>
@@ -2066,6 +2115,7 @@
                 <option value="admin" ${u.role === "admin" ? "selected" : ""}>admin</option>
               </select>
             </td>
+            <td><input id="admin-team-${u.id}" value="${escapeHtml(u.team || "default")}" /></td>
             <td>
               <input id="admin-active-${u.id}" type="checkbox" ${u.is_active ? "checked" : ""} />
             </td>
@@ -2075,6 +2125,188 @@
           </tr>
         `).join("");
         document.getElementById("adminUsersView").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function renderAdminSharedServersSummary() {
+        const el = document.getElementById("adminSharedServersSummary");
+        if (!el) return;
+        const rows = sharedMcpServersState.map((s) => ({
+          "Name": s.name || "-",
+          "URL": s.base_url || "-",
+          "Status": s.is_active ? "active" : "inactive",
+          "Source": s.source || "shared",
+        }));
+        el.innerHTML = rows.length ? renderTable(rows) : "<p>No shared servers available.</p>";
+      }
+
+      function renderAdminOpsSummary(jobs, alerts) {
+        const el = document.getElementById("adminOpsSummary");
+        if (!el) return;
+        const lastJob = (jobs || [])[0] || {};
+        const lastAlert = (alerts || [])[0] || {};
+        el.innerHTML = renderTable([{
+          "Total Jobs": (jobs || []).length,
+          "Active Jobs": (jobs || []).filter(j => j.is_active).length,
+          "Paused Jobs": (jobs || []).filter(j => !j.is_active).length,
+          "Alerts": (alerts || []).length,
+          "Latest Job": lastJob.job_id || "-",
+          "Latest Alert": lastAlert.alert_id || "-",
+        }]);
+      }
+
+      function renderAdminOverviewCards(users, jobs, alerts, teamPolicies) {
+        const totalUsers = (users || []).length;
+        const activeUsers = (users || []).filter(u => u.is_active).length;
+        const admins = (users || []).filter(u => u.role === "admin").length;
+        const teams = new Set((users || []).map(u => u.team || "default")).size;
+        const activeJobs = (jobs || []).filter(j => j.is_active).length;
+        const highAlerts = (alerts || []).filter(a => String(a.severity || "").toLowerCase() === "high").length;
+        const cards = [
+          { title: "Users", value: totalUsers, sub: `${activeUsers} active` },
+          { title: "Admins", value: admins, sub: `${teams} teams` },
+          { title: "Shared MCP Servers", value: sharedMcpServersState.length, sub: "catalog entries" },
+          { title: "Jobs", value: activeJobs, sub: `${(jobs || []).length} total` },
+          { title: "Alerts", value: (alerts || []).length, sub: `${highAlerts} high severity` },
+          { title: "Team Policies", value: (teamPolicies || []).length, sub: "RBAC scopes" },
+        ];
+        renderAdminOverview(`
+          <div class="sla-grid">
+            ${cards.map(c => `
+              <div class="sla-card">
+                <p class="sla-title">${escapeHtml(c.title)}</p>
+                <div class="sla-value">${escapeHtml(c.value)}</div>
+                <div class="small">${escapeHtml(c.sub)}</div>
+              </div>
+            `).join("")}
+          </div>
+        `);
+      }
+
+      function renderAdminReportSummary(summary) {
+        if (!summary || typeof summary !== "object") return "<p>No summary available.</p>";
+        const cards = Object.entries(summary).map(([key, value]) => `
+          <div class="sla-card">
+            <p class="sla-title">${escapeHtml(String(key).replaceAll("_", " "))}</p>
+            <div class="sla-value">${escapeHtml(value)}</div>
+          </div>
+        `).join("");
+        return `<div class="sla-grid">${cards}</div>`;
+      }
+
+      async function loadAdminAccessReviewUi() {
+        const target = (html) => { document.getElementById("adminAccessReviewView").innerHTML = html; };
+        try {
+          if (!ensureLoggedIn("Access Review", target)) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            target("<p>Admin access required.</p>");
+            return null;
+          }
+          const resp = await mcpCall("admin_access_review", { stale_days: 90, audit_limit: 200 });
+          const report = resp.result || {};
+          const staleRows = (report.stale_accounts || []).map((x) => ({
+            "User": x.email || x.name || x.user_id,
+            "Role": x.role || "-",
+            "Team": x.team || "-",
+            "Active": x.is_active ? "yes" : "no",
+            "Last Login": formatIso(x.last_login_at),
+          }));
+          const orphanRows = (report.orphaned_team_users || []).map((x) => ({
+            "User": x.email || x.name || x.user_id,
+            "Team": x.team || "-",
+            "Role": x.role || "-",
+          }));
+          const recommendations = (report.recommendations || []).map((x) => `<li>${escapeHtml(x)}</li>`).join("");
+          target(`
+            ${renderAdminReportSummary(report.summary)}
+            <h4 style="margin-top:14px;">Stale Accounts</h4>
+            ${staleRows.length ? renderTable(staleRows) : "<p>No stale accounts detected.</p>"}
+            <h4 style="margin-top:14px;">Users Without Team Policy</h4>
+            ${orphanRows.length ? renderTable(orphanRows) : "<p>All user teams have policies.</p>"}
+            <h4 style="margin-top:14px;">Recommendations</h4>
+            ${recommendations ? `<ul>${recommendations}</ul>` : "<p>No immediate recommendations.</p>"}
+          `);
+          return report;
+        } catch (e) {
+          renderError(target, parseErrorMessage(e));
+          return null;
+        }
+      }
+
+      async function loadAdminRuleGovernanceUi() {
+        const target = (html) => { document.getElementById("adminRuleGovernanceView").innerHTML = html; };
+        try {
+          if (!ensureLoggedIn("Rule Governance", target)) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            target("<p>Admin access required.</p>");
+            return null;
+          }
+          const resp = await mcpCall("admin_rule_governance", { days: 30 });
+          const report = resp.result || {};
+          const pendingHighRows = (report.pending_high_severity || []).map((x) => ({
+            "Suggestion ID": x.suggestion_id || "-",
+            "Dataset": x.dataset_type || "-",
+            "Approvals": `${x.approvals || 0}/${x.required_approvals || 2}`,
+            "Created": formatIso(x.created_at),
+          }));
+          const rollbackRows = (report.recent_rollbacks || []).map((x) => ({
+            "Time": formatIso(x.created_at),
+            "Admin User ID": x.admin_user_id || "-",
+            "Target": `${x.target_type || "-"}:${x.target_id || "-"}`,
+            "Summary": shortText(x.summary || "-", 120),
+          }));
+          target(`
+            ${renderAdminReportSummary(report.summary)}
+            <h4 style="margin-top:14px;">High-Severity Pending Suggestions</h4>
+            ${pendingHighRows.length ? renderTable(pendingHighRows) : "<p>No high-severity suggestions pending.</p>"}
+            <h4 style="margin-top:14px;">Recent Rollbacks</h4>
+            ${rollbackRows.length ? renderTable(rollbackRows) : "<p>No rollbacks in selected period.</p>"}
+          `);
+          return report;
+        } catch (e) {
+          renderError(target, parseErrorMessage(e));
+          return null;
+        }
+      }
+
+      async function loadAdminComplianceUi() {
+        const target = (html) => { document.getElementById("adminComplianceView").innerHTML = html; };
+        try {
+          if (!ensureLoggedIn("Compliance Report", target)) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            target("<p>Admin access required.</p>");
+            return null;
+          }
+          const resp = await mcpCall("admin_compliance_report", { days: 30 });
+          const report = resp.result || {};
+          const failedRows = (report.failed_runs || []).map((x) => ({
+            "Run ID": x.run_id || "-",
+            "Dataset": x.dataset_type || "-",
+            "Provider": x.provider || "-",
+            "Process": x.process_type || "-",
+            "Status": x.status || "-",
+            "Created": formatIso(x.created_at),
+          }));
+          const alertRows = (report.latest_alerts || []).slice(0, 10).map((x) => ({
+            "Time": formatIso(x.created_at),
+            "Source": x.source || "-",
+            "Severity": x.severity || "-",
+            "Message": shortText(x.message || "-", 130),
+          }));
+          target(`
+            ${renderAdminReportSummary(report.summary)}
+            <h4 style="margin-top:14px;">Failed Runs</h4>
+            ${failedRows.length ? renderTable(failedRows) : "<p>No failed runs in selected period.</p>"}
+            <h4 style="margin-top:14px;">Recent Alerts</h4>
+            ${alertRows.length ? renderTable(alertRows) : "<p>No alerts in selected period.</p>"}
+          `);
+          return report;
+        } catch (e) {
+          renderError(target, parseErrorMessage(e));
+          return null;
+        }
       }
 
       async function adminLoadUsers() {
@@ -2093,6 +2325,107 @@
         }
       }
 
+      async function adminLoadTeamPoliciesUi() {
+        try {
+          if (!ensureLoggedIn("Admin Team Policies", (html) => { document.getElementById("adminTeamPoliciesView").innerHTML = html; })) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            document.getElementById("adminTeamPoliciesView").innerHTML = "<p>Admin access required.</p>";
+            return [];
+          }
+          const resp = await mcpCallTo(activeMcpBase, "admin_list_team_policies", {});
+          const rows = (resp.result || []).map((x) => ({
+            "Team": x.team,
+            "Dataset Scope": Array.isArray(x.allowed_dataset_types) ? x.allowed_dataset_types.join(", ") : "-",
+            "Server Scope": Array.isArray(x.allowed_server_urls) ? x.allowed_server_urls.join(", ") : "-",
+            "Scoped Admin": x.scoped_admin ? "yes" : "no",
+            "Updated": formatIso(x.updated_at),
+          }));
+          document.getElementById("adminTeamPoliciesView").innerHTML = rows.length ? renderTable(rows) : "<p>No team policies configured.</p>";
+          return resp.result || [];
+        } catch (e) {
+          renderError((html) => { document.getElementById("adminTeamPoliciesView").innerHTML = html; }, parseErrorMessage(e));
+          return [];
+        }
+      }
+
+      async function adminSaveTeamPolicyUi() {
+        try {
+          if (!ensureLoggedIn("Save Team Policy", (html) => { document.getElementById("adminTeamPoliciesView").innerHTML = html; })) return;
+          const team = document.getElementById("adminPolicyTeam").value.trim();
+          const datasets = document.getElementById("adminPolicyDatasets").value
+            .split(",").map(x => x.trim()).filter(Boolean);
+          const servers = document.getElementById("adminPolicyServers").value
+            .split(",").map(x => x.trim()).filter(Boolean);
+          const scopedAdmin = document.getElementById("adminPolicyScopedAdmin").checked;
+          await mcpCall("admin_set_team_policy", {
+            team,
+            allowed_dataset_types: datasets,
+            allowed_server_urls: servers,
+            scoped_admin: scopedAdmin,
+          });
+          document.getElementById("adminTeamPoliciesView").innerHTML = `<div class="ok">Team policy saved for ${escapeHtml(team)}</div>`;
+          await adminLoadTeamPoliciesUi();
+        } catch (e) {
+          renderError((html) => { document.getElementById("adminTeamPoliciesView").innerHTML = html; }, parseErrorMessage(e));
+        }
+      }
+
+      async function loadAdminAuditLogsUi() {
+        try {
+          if (!ensureLoggedIn("Admin Audit Logs", renderAdminAudit)) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            renderAdminAudit("<p>Admin access required.</p>");
+            return [];
+          }
+          const resp = await mcpCall("admin_list_audit_logs", { limit: 200 });
+          const rows = (resp.result || []).map((x) => ({
+            "Time": formatIso(x.created_at),
+            "Admin User ID": x.admin_user_id,
+            "Action": x.action || "-",
+            "Target": `${x.target_type || "-"}:${x.target_id || "-"}`,
+            "Summary": shortText(x.summary || "-", 140),
+          }));
+          renderAdminAudit(rows.length ? renderTable(rows) : "<p>No admin audit events found.</p>");
+          return resp.result || [];
+        } catch (e) {
+          renderError(renderAdminAudit, parseErrorMessage(e));
+          return [];
+        }
+      }
+
+      async function adminRefreshAll() {
+        try {
+          if (!ensureLoggedIn("Admin Dashboard", renderAdminOverview)) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            renderAdminOverview("<p>Admin access required.</p>");
+            return;
+          }
+          await loadAvailableMcpServers();
+          await adminLoadUsers();
+          const [jobsResp, alertsResp, teamPolicies] = await Promise.all([
+            mcpCall("list_workflow_jobs", { limit: 100 }),
+            mcpCall("list_alerts", { limit: 100 }),
+            adminLoadTeamPoliciesUi(),
+          ]);
+          await Promise.all([
+            loadAdminAuditLogsUi(),
+            loadAdminAccessReviewUi(),
+            loadAdminRuleGovernanceUi(),
+            loadAdminComplianceUi(),
+          ]);
+          const jobs = jobsResp.result || [];
+          const alerts = alertsResp.result || [];
+          renderAdminSharedServersSummary();
+          renderAdminOpsSummary(jobs, alerts);
+          renderAdminOverviewCards(adminUsersCache, jobs, alerts, teamPolicies);
+        } catch (e) {
+          renderError(renderAdminOverview, parseErrorMessage(e));
+        }
+      }
+
       async function loadAppData() {
         await loadAvailableMcpServers();
         if (isLlmTabEnabledForActiveServer()) {
@@ -2106,17 +2439,18 @@
         await loadWorkflowJobsUi();
         await loadAlertsUi();
         await loadIntegrationStatusUi();
-        await adminLoadUsers();
+        await adminRefreshAll();
       }
 
       async function adminSaveUser(userId) {
         try {
           if (!ensureLoggedIn("Admin User Management", (html) => { document.getElementById("accountStatus").innerHTML = html; })) return;
           const role = document.getElementById(`admin-role-${userId}`).value;
+          const team = document.getElementById(`admin-team-${userId}`).value.trim() || "default";
           const isActive = document.getElementById(`admin-active-${userId}`).checked;
-          await mcpCallTo(activeMcpBase, "admin_update_user", { user_id: userId, role, is_active: isActive });
+          await mcpCallTo(activeMcpBase, "admin_update_user", { user_id: userId, role, team, is_active: isActive });
           document.getElementById("accountStatus").innerHTML = `<div class="ok">User ${escapeHtml(userId)} updated.</div>`;
-          await adminLoadUsers();
+          await adminRefreshAll();
         } catch (e) {
           renderError((html) => { document.getElementById("accountStatus").innerHTML = html; }, parseErrorMessage(e));
         }

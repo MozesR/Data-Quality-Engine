@@ -65,10 +65,10 @@ services:
       LLM_CONFIG_PATH: /app/config/llm.yaml
       AUTH_MODE: demo
       AUTH_REQUIRED: "false"
-      AUTH_SECRET: demo-secret-change-me
+      AUTH_SECRET: ${DEMO_AUTH_SECRET:?set_DEMO_AUTH_SECRET}
       UI_ALLOW_LLM_TAB: "true"
-      DEMO_ADMIN_EMAIL: admin@idqe.local
-      DEMO_ADMIN_PASSWORD: Admin123!
+      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:?set_DEMO_ADMIN_EMAIL}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?set_DEMO_ADMIN_PASSWORD}
     volumes:
       - ./config/rules.demo.a.yaml:/app/config/rules.yaml
       - ./config/llm.demo.yaml:/app/config/llm.yaml
@@ -93,10 +93,10 @@ services:
       LLM_CONFIG_PATH: /app/config/llm.yaml
       AUTH_MODE: demo
       AUTH_REQUIRED: "false"
-      AUTH_SECRET: demo-secret-change-me
+      AUTH_SECRET: ${DEMO_AUTH_SECRET:?set_DEMO_AUTH_SECRET}
       UI_ALLOW_LLM_TAB: "true"
-      DEMO_ADMIN_EMAIL: admin@idqe.local
-      DEMO_ADMIN_PASSWORD: Admin123!
+      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:?set_DEMO_ADMIN_EMAIL}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?set_DEMO_ADMIN_PASSWORD}
     volumes:
       - ./config/rules.demo.b.yaml:/app/config/rules.yaml
       - ./config/llm.demo.yaml:/app/config/llm.yaml
