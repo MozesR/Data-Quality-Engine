@@ -6,9 +6,9 @@ Detailed runbook: `/Users/mozesrahangmetan/Documents/DQ/docs/run-demo.md`
 
 Detailed documentation set:
 
-- Demo installation: `/Users/mozesrahangmetan/Documents/DQ/docs/install-demo-detailed.md`
-- Production installation: `/Users/mozesrahangmetan/Documents/DQ/docs/install-production-detailed.md`
-- User manual: `/Users/mozesrahangmetan/Documents/DQ/docs/user-manual.md`
+- Demo installation: `/DQ/docs/install-demo-detailed.md`
+- Production installation: `/DQ/docs/install-production-detailed.md`
+- User manual: `/DQ/docs/user-manual.md`
 
 ## What is included
 
