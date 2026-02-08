@@ -2,7 +2,7 @@
 
 This repo contains a demo and production-oriented baseline for the Data Quality Engine described in `Presentation Yoda Final v01.pptx`.
 
-Detailed runbook: `/Users/mozesrahangmetan/Documents/DQ/docs/run-demo.md`
+Detailed runbook: `s/DQ/docs/run-demo.md`
 
 Detailed documentation set:
 
