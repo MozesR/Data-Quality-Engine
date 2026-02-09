@@ -768,6 +768,24 @@
         display: flex;
         gap: 6px;
       }
+      .table-scroll {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .admin-users-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+        min-width: 140px;
+      }
+      @media (max-width: 980px) {
+        .admin-users-actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
       .popup-overlay {
         position: fixed;
         inset: 0;
@@ -3014,9 +3032,11 @@
             </td>
             <td title="${escapeHtml(formatIso(u.created_at))}">${escapeHtml(relativeTime(u.created_at))}</td>
             <td title="${escapeHtml(formatIso(u.last_login_at))}">${escapeHtml(u.last_login_at ? relativeTime(u.last_login_at) : "-")}</td>
-            <td style="white-space:nowrap;">
-              <button class="ghost" onclick="adminSaveUser(${u.id})">Save</button>
-              <button class="danger" onclick="adminDeleteUser(${u.id})">Delete</button>
+            <td>
+              <div class="admin-users-actions">
+                <button class="ghost" onclick="adminSaveUser(${u.id})">Save</button>
+                <button class="danger" onclick="adminDeleteUser(${u.id})">Delete</button>
+              </div>
             </td>
           </tr>
         `).join("");
@@ -3026,7 +3046,7 @@
             <div class="small muted">Page <strong>${adminUsersPage}</strong> / ${totalPages} (showing ${start + 1}-${end} of ${total})</div>
             <button class="ghost" ${adminUsersPage >= totalPages ? "disabled" : ""} onclick="adminSetUsersPage(${adminUsersPage + 1})">Next</button>
           </div>
-          <table><thead>${head}</thead><tbody>${body}</tbody></table>
+          <div class="table-scroll"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
         `;
         const selAll = document.getElementById("adminUsersSelectAll");
         if (selAll) selAll.checked = !!allSelectedOnPage;
