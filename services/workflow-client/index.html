@@ -2886,20 +2886,56 @@
 
       async function getRuns() {
         try {
-          if (!ensureLoggedIn("Workflow History", renderRun)) return;
           const targets = getSelectedRunServers();
-          if (!ensureLoggedInForServers(targets, "Workflow History", renderRun)) return;
-          const runResults = await Promise.all(
+          if (!targets.length) {
+            renderRun(`
+              <h4>Workflow Run History</h4>
+              <p>No MCP servers selected.</p>
+              <p class="muted">Connect a server in <strong>MCP Session</strong>, then select it as a target.</p>
+            `);
+            return;
+          }
+
+          // History should be accessible even when some servers require login.
+          const settled = await Promise.allSettled(
             targets.map(async (serverUrl) => {
               const data = await mcpCallTo(serverUrl, "get_workflow_runs", { limit: 50 });
               return (data.result || []).map(r => ({ ...r, __server_url: serverUrl }));
             })
           );
+
+          const unauthorized = [];
+          const failed = [];
+          const runResults = [];
+          for (let i = 0; i < settled.length; i++) {
+            const serverUrl = targets[i];
+            const item = settled[i];
+            if (item.status === "fulfilled") {
+              runResults.push(item.value || []);
+              continue;
+            }
+            const msg = parseErrorMessage(item.reason);
+            if (String(msg).toLowerCase().includes("authentication required") || String(msg).includes("\"status_code\":401")) {
+              unauthorized.push(serverUrl);
+            } else {
+              failed.push({ serverUrl, msg });
+            }
+          }
+
           const rows = runResults.flat().sort((a, b) => (String(b.created_at || "")).localeCompare(String(a.created_at || "")));
           if (!rows.length) {
-            renderRun("<h4>Workflow Run History</h4><p>No runs found.</p>");
+            const hints = [
+              unauthorized.length ? `<div class="warn"><strong>Login required:</strong> ${escapeHtml(unauthorized.join(", "))}</div>` : "",
+              failed.length ? `<div class="warn"><strong>Some servers failed:</strong><br/>${failed.map(x => `${escapeHtml(x.serverUrl)}: ${escapeHtml(x.msg)}`).join("<br/>")}</div>` : "",
+            ].join("");
+            renderRun(`<h4>Workflow Run History</h4>${hints}<p>No runs found.</p>`);
             return;
           }
+
+          const hints = [
+            unauthorized.length ? `<div class="warn"><strong>Login required:</strong> ${escapeHtml(unauthorized.join(", "))}</div>` : "",
+            failed.length ? `<div class="warn"><strong>Some servers failed:</strong><br/>${failed.map(x => `${escapeHtml(x.serverUrl)}: ${escapeHtml(x.msg)}`).join("<br/>")}</div>` : "",
+          ].join("");
           const head = "<tr><th>MCP Server</th><th>Run ID</th><th>Dataset ID</th><th>Type</th><th>Provider</th><th>Process</th><th>Status</th><th>Created At</th><th>Action</th></tr>";
           const body = rows.map(r => `
             <tr class="clickable-row" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">
@@ -2911,10 +2947,10 @@
               <td>${escapeHtml(r.process_type)}</td>
               <td>${escapeHtml(r.status)}</td>
               <td>${escapeHtml(r.created_at)}</td>
-              <td><button class="ghost" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">View Details</button></td>
+              <td><button class="ghost" onclick="event.stopPropagation(); showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">View Details</button></td>
             </tr>
           `).join("");
-          renderRun(`<h4>Workflow Run History</h4><table><thead>${head}</thead><tbody>${body}</tbody></table>`);
+          renderRun(`<h4>Workflow Run History</h4>${hints}<table><thead>${head}</thead><tbody>${body}</tbody></table>`);
         } catch (e) {
           renderError(renderRun, parseErrorMessage(e));
         }
