@@ -2309,7 +2309,7 @@ def ensure_schema_evolution() -> None:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS team VARCHAR(64) DEFAULT 'default'"))
         conn.execute(text("UPDATE users SET team = 'default' WHERE team IS NULL OR team = ''"))
         conn.execute(text("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS rules_config JSON NULL"))
-        conn.execute(text("ALTER TABLE user_settings DROP COLUMN IF EXISTS mcp_servers"))
+        # Avoid destructive DDL at startup (production safety). Keep legacy columns if present.
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_workflow_runs_owner_created ON workflow_runs(owner_user_id, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_suggestion_decisions_owner_created ON suggestion_decisions(owner_user_id, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rule_versions_owner_created ON rule_versions(owner_user_id, created_at DESC)"))
@@ -2380,6 +2380,7 @@ def tools_list() -> dict[str, Any]:
             {"name": "auth_me", "description": "Get current user profile"},
             {"name": "admin_list_users", "description": "Admin: list users"},
             {"name": "admin_update_user", "description": "Admin: update role/active state"},
+            {"name": "list_shared_mcp_servers", "description": "List shared MCP servers (active only)"},
             {"name": "admin_list_shared_mcp_servers", "description": "Admin: list shared MCP servers"},
             {"name": "admin_save_shared_mcp_servers", "description": "Admin: replace shared MCP servers list"},
             {"name": "list_data_sources", "description": "List configured data providers"},
@@ -2591,6 +2592,12 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                 {"updates": {k: v for k, v in params.items() if k != "id"}},
             )
         return {"result": {"message": "User updated"}}
+
+    if tool == "list_shared_mcp_servers":
+        # Non-admin read-only view (active servers only).
+        if AUTH_REQUIRED and not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        return {"result": {"servers": get_shared_mcp_servers(include_inactive=False)}}
 
     if tool == "admin_list_shared_mcp_servers":
         require_admin(user)

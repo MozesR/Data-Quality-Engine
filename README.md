@@ -92,6 +92,14 @@ cp .env.demo.example .env.demo
 docker compose --env-file .env.demo -f docker-compose.demo.yml up --build
 ```
 
+The demo stack has safe defaults, but using `--env-file .env.demo` is recommended so you can set your own admin
+credentials and `AUTH_SECRET`.
+
+Default demo admin credentials (if you did not override in `.env.demo`):
+
+- Email: `admin@idqe.local`
+- Password: `Admin123!`
+
 Open:
 
 - Workflow MCP client: `http://localhost:8080`

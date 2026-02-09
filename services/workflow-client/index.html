@@ -1626,6 +1626,9 @@
 
       function disconnectServer(url) {
         const base = normalizeBaseUrl(url);
+        const meta = connectedServers.find(s => s.url === base);
+        const label = meta ? `${meta.name || "mcp-server"} (${base})` : base;
+        if (!confirm(`Disconnect MCP server?\n\n${label}`)) return;
         connectedServers = connectedServers.filter(s => s.url !== base);
         selectedRunServers.delete(base);
         analyticsSelectedServers.delete(base);
@@ -1926,7 +1929,7 @@
         try {
           if (!ensureLoggedIn("Load MCP Server Catalog", renderSession)) return;
           // Shared catalog is the only persisted catalog now.
-          const availableResp = await mcpCall("admin_list_shared_mcp_servers", {});
+          const availableResp = await mcpCall("list_shared_mcp_servers", {});
           const all = ((availableResp.result || {}).servers || [])
             .map(s => normalizeServerEntry(s, "shared"))
             .filter(Boolean)
