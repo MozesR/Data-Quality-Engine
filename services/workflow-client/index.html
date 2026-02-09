@@ -3014,7 +3014,10 @@
             </td>
             <td title="${escapeHtml(formatIso(u.created_at))}">${escapeHtml(relativeTime(u.created_at))}</td>
             <td title="${escapeHtml(formatIso(u.last_login_at))}">${escapeHtml(u.last_login_at ? relativeTime(u.last_login_at) : "-")}</td>
-            <td><button class="ghost" onclick="adminSaveUser(${u.id})">Save</button></td>
+            <td style="white-space:nowrap;">
+              <button class="ghost" onclick="adminSaveUser(${u.id})">Save</button>
+              <button class="danger" onclick="adminDeleteUser(${u.id})">Delete</button>
+            </td>
           </tr>
         `).join("");
         document.getElementById("adminUsersView").innerHTML = `
@@ -3741,6 +3744,34 @@
           await adminRefreshAll();
         } catch (e) {
           renderError((html) => { document.getElementById("accountStatus").innerHTML = html; }, parseErrorMessage(e));
+        }
+      }
+
+      async function adminDeleteUser(userId) {
+        try {
+          if (!ensureLoggedIn("Delete User", (html) => { document.getElementById("adminUsersView").innerHTML = html; })) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            showPopup("Admin Required", "Admin role required.", "err");
+            return;
+          }
+          const meId = Number(session.user.id || 0);
+          const id = Number(userId || 0);
+          if (!Number.isFinite(id) || id <= 0) return;
+          if (id === meId) {
+            showPopup("Not Allowed", "You cannot delete your own account.", "err");
+            return;
+          }
+          const target = (adminUsersCache || []).find(u => Number(u.id) === id) || {};
+          const label = `${target.email || "user"} (id=${id})`;
+          const ok = confirm(`Delete user?\n\n${label}\n\nThis will remove the user account and its saved settings. Historical runs will remain but will no longer be owned by this user.`);
+          if (!ok) return;
+          await mcpCallTo(activeMcpBase, "admin_delete_user", { user_id: id, confirm: true });
+          showPopup("User Deleted", `Deleted: ${label}`, "ok");
+          adminSelectedUserIds.delete(id);
+          await adminLoadUsers();
+        } catch (e) {
+          showPopup("Delete Failed", parseErrorMessage(e), "err");
         }
       }
 

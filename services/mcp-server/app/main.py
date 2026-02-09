@@ -2462,6 +2462,7 @@ def tools_list() -> dict[str, Any]:
             {"name": "auth_me", "description": "Get current user profile"},
             {"name": "admin_list_users", "description": "Admin: list users"},
             {"name": "admin_update_user", "description": "Admin: update role/active state"},
+            {"name": "admin_delete_user", "description": "Admin: delete a user (with safety checks)"},
             {"name": "list_shared_mcp_servers", "description": "List shared MCP servers (active only)"},
             {"name": "admin_list_shared_mcp_servers", "description": "Admin: list shared MCP servers"},
             {"name": "admin_save_shared_mcp_servers", "description": "Admin: replace shared MCP servers list"},
@@ -2674,6 +2675,75 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                 {"updates": {k: v for k, v in params.items() if k != "id"}},
             )
         return {"result": {"message": "User updated"}}
+
+    if tool == "admin_delete_user":
+        enforce_authenticated_write(user)
+        require_admin(user)
+        enforce_team_scope(user, request, admin_action=True)
+        target_user_id = int(args.get("user_id", 0))
+        confirm = bool(args.get("confirm", False))
+        if target_user_id <= 0:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        if not confirm:
+            raise HTTPException(status_code=400, detail="confirm=true is required to delete a user")
+        if user and int(user.get("id") or 0) == target_user_id:
+            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+        with engine.begin() as conn:
+            target = conn.execute(
+                text("SELECT id, email, team, role, is_active FROM users WHERE id = :id LIMIT 1"),
+                {"id": target_user_id},
+            ).mappings().first()
+            if not target:
+                raise HTTPException(status_code=404, detail="Target user not found")
+            if user and not can_manage_user(user, str(target.get("team") or "default")):
+                raise HTTPException(status_code=403, detail="Scoped admin policy denies managing this user")
+            if str(target.get("role") or "user") == "admin" and bool(target.get("is_active", False)):
+                count_row = conn.execute(
+                    text("SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = true")
+                ).mappings().first()
+                active_admins = int((count_row or {}).get("c", 0) or 0)
+                if active_admins <= 1:
+                    raise HTTPException(status_code=400, detail="Cannot delete the last active admin")
+
+            # Keep historical records but anonymize ownership (do not hard-delete history tables).
+            owner_tables = [
+                ("workflow_runs", "owner_user_id"),
+                ("suggestion_decisions", "owner_user_id"),
+                ("pending_suggestions_store", "owner_user_id"),
+                ("rule_versions", "owner_user_id"),
+                ("workflow_jobs", "owner_user_id"),
+                ("drift_baselines", "owner_user_id"),
+                ("alerts_store", "owner_user_id"),
+            ]
+            for table, col in owner_tables:
+                conn.execute(text(f"UPDATE {table} SET {col} = NULL WHERE {col} = :id"), {"id": target_user_id})
+
+            # Remove per-user settings and approval records.
+            conn.execute(text("DELETE FROM user_settings WHERE user_id = :id"), {"id": target_user_id})
+            conn.execute(text("DELETE FROM suggestion_approvals WHERE approver_user_id = :id"), {"id": target_user_id})
+
+            # Finally delete the user record itself.
+            conn.execute(text("DELETE FROM users WHERE id = :id"), {"id": target_user_id})
+
+        if user:
+            audit_admin_action(
+                int(user["id"]),
+                "admin_delete_user",
+                "user",
+                str(target_user_id),
+                f"Deleted user {target_user_id}",
+                {
+                    "deleted_user": {
+                        "id": int(target.get("id")),
+                        "email": str(target.get("email") or ""),
+                        "team": str(target.get("team") or "default"),
+                        "role": str(target.get("role") or "user"),
+                        "was_active": bool(target.get("is_active", False)),
+                    }
+                },
+            )
+        return {"result": {"message": "User deleted"}}
 
     if tool == "list_shared_mcp_servers":
         # Non-admin read-only view (active servers only).
