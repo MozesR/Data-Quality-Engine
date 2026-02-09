@@ -310,6 +310,94 @@
       .badge.warn { background: #ffedd5; color: #9a3412; border-color: rgba(154, 52, 18, 0.2); }
       .badge.err { background: #fee2e2; color: #991b1b; border-color: rgba(153, 27, 27, 0.2); }
       .badge.neutral { background: #eef2ff; color: #1f2a44; border-color: rgba(31, 42, 68, 0.15); }
+      .admin-shell {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 16px;
+        align-items: start;
+      }
+      .admin-nav {
+        position: sticky;
+        top: 12px;
+        background: rgba(255,255,255,0.65);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+      }
+      .admin-nav h4 { margin: 2px 0 10px; }
+      .admin-nav button {
+        width: 100%;
+        text-align: left;
+        margin: 0 0 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-weight: 900;
+        font-size: 14px;
+        background: transparent;
+        border: 1px solid transparent;
+        color: #3a4c67;
+      }
+      .admin-nav button:hover { background: rgba(45, 95, 216, 0.08); }
+      .admin-nav button.active {
+        background: rgba(45, 95, 216, 0.12);
+        border-color: rgba(45, 95, 216, 0.28);
+        color: var(--primary);
+      }
+      .admin-topbar {
+        position: sticky;
+        top: 12px;
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        background: rgba(255,255,255,0.68);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+      }
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .kpi {
+        background: #ffffff;
+        border: 1px solid #e1e8f5;
+        border-radius: 14px;
+        padding: 12px;
+      }
+      .kpi .label { color: #5b6f8b; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.6px; }
+      .kpi .value { font-size: 24px; font-weight: 900; margin-top: 6px; color: #1f2a44; }
+      .drawer {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2100;
+        background: rgba(13, 22, 40, 0.55);
+      }
+      .drawer.active { display: block; }
+      .drawer-card {
+        position: absolute;
+        top: 0;
+        right: 0;
+        height: 100%;
+        width: min(560px, 92vw);
+        background: #ffffff;
+        border-left: 1px solid #dbe5f5;
+        box-shadow: -10px 0 30px rgba(0,0,0,0.22);
+        padding: 14px;
+        overflow: auto;
+      }
+      .drawer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
       .primary-actions {
         display: flex;
         flex-wrap: wrap;
@@ -757,6 +845,7 @@
         .toolbar { padding: 0 12px; overflow-x: auto; }
         .tab-btn { font-size: 18px; padding: 14px 18px; white-space: nowrap; }
         .content { padding: 18px 12px; }
+        .admin-shell { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -1212,84 +1301,230 @@
       </section>
 
       <section id="tab-admin" class="tab">
-        <div class="card">
-          <h3>Admin Dashboard</h3>
-          <p class="small">Central controls for users, teams, shared MCP servers, jobs, and alerts.</p>
-          <button class="ghost" onclick="adminRefreshAll()">Refresh Admin Dashboard</button>
-          <div id="adminOverview" style="margin-top:10px;">Admin overview not loaded.</div>
-        </div>
-
-        <div class="grid">
-          <div class="card">
-            <h3>User & Access Management</h3>
-            <p class="small">Manage user role, team, and active state.</p>
-            <button class="ghost" onclick="adminLoadUsers()">Refresh Users</button>
-            <div id="adminUsersView" style="margin-top:10px;">Admin users table not loaded.</div>
+        <div class="admin-shell">
+          <div class="admin-nav">
+            <h4>Admin</h4>
+            <button id="admin-nav-overview" class="active" onclick="adminSwitchPanel('overview')">Overview</button>
+            <button id="admin-nav-users" onclick="adminSwitchPanel('users')">Users</button>
+            <button id="admin-nav-teams" onclick="adminSwitchPanel('teams')">Teams</button>
+            <button id="admin-nav-servers" onclick="adminSwitchPanel('servers')">Shared Servers</button>
+            <button id="admin-nav-jobs" onclick="adminSwitchPanel('jobs')">Jobs</button>
+            <button id="admin-nav-alerts" onclick="adminSwitchPanel('alerts')">Alerts</button>
+            <button id="admin-nav-audit" onclick="adminSwitchPanel('audit')">Audit Log</button>
+            <button id="admin-nav-reports" onclick="adminSwitchPanel('reports')">Reports</button>
+            <button id="admin-nav-danger" onclick="adminSwitchPanel('danger')">Danger Zone</button>
           </div>
 
-          <div class="card">
-            <h3>Team Policy Management</h3>
-            <p class="small">Set per-team dataset/server scope and scoped-admin mode.</p>
-            <label>Team</label>
-            <input id="adminPolicyTeam" value="default" />
-            <label>Allowed Dataset Types (comma-separated)</label>
-            <input id="adminPolicyDatasets" value="customer_profile,credit_facility" />
-            <label>Allowed Server URLs (comma-separated, use * for any)</label>
-            <input id="adminPolicyServers" value="*" />
-            <div class="check-row">
-              <input type="checkbox" id="adminPolicyScopedAdmin" />
-              <label for="adminPolicyScopedAdmin" style="margin:0;">Scoped admin (admins can only manage users in same team)</label>
+          <div>
+            <div class="admin-topbar">
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <div style="font-weight:900;">Admin Dashboard</div>
+                <div class="small muted">Target MCP server:</div>
+                <select id="adminServerSelect" style="margin-bottom:0; max-width:280px;" onchange="adminSelectServer(this.value)"></select>
+                <div id="adminLastRefresh" class="small muted">Not refreshed yet.</div>
+              </div>
+              <div class="primary-actions" style="margin-top:0;">
+                <button class="ghost" onclick="adminRefreshAll()">Refresh</button>
+              </div>
             </div>
-            <button onclick="adminSaveTeamPolicyUi()">Save Team Policy</button>
-            <button class="ghost" onclick="adminLoadTeamPoliciesUi()">Refresh Team Policies</button>
-            <div id="adminTeamPoliciesView" style="margin-top:10px;">No team policies loaded.</div>
-          </div>
-        </div>
 
-        <div class="grid">
-          <div class="card">
-            <h3>Shared MCP Server Catalog</h3>
-            <p class="small">Quickly review shared server entries maintained in MCP Session.</p>
-            <button class="ghost" onclick="loadAvailableMcpServers()">Refresh Shared Servers</button>
-            <div id="adminSharedServersSummary" style="margin-top:10px;">No shared server summary loaded.</div>
-          </div>
-          <div class="card">
-            <h3>Operational Controls</h3>
-            <p class="small">Run due jobs and inspect alerts from admin page.</p>
-            <button class="ghost" onclick="runDueJobsUi()">Run Due Jobs</button>
-            <button class="ghost" onclick="loadWorkflowJobsUi()">Refresh Jobs</button>
-            <button class="ghost" onclick="loadAlertsUi()">Refresh Alerts</button>
-            <div id="adminOpsSummary" style="margin-top:10px;">No operational summary loaded.</div>
-          </div>
-        </div>
+            <div id="admin-panel-overview" class="admin-panel">
+              <div id="adminOverview" class="card">Admin overview not loaded.</div>
+              <div id="adminKpis" class="kpi-grid"></div>
+              <div class="grid" style="margin-top:12px;">
+                <div class="card">
+                  <h3>Operational Snapshot</h3>
+                  <div id="adminOpsSummary" style="margin-top:10px;">No operational summary loaded.</div>
+                </div>
+                <div class="card">
+                  <h3>Shared MCP Servers</h3>
+                  <div id="adminSharedServersSummary" style="margin-top:10px;">No shared server summary loaded.</div>
+                </div>
+              </div>
+            </div>
 
-        <div class="card">
-          <h3>Admin Audit Log</h3>
-          <p class="small">Tracks critical admin actions for governance and traceability.</p>
-          <button class="ghost" onclick="loadAdminAuditLogsUi()">Refresh Audit Log</button>
-          <div id="adminAuditView" style="margin-top:10px;">No audit log loaded.</div>
-        </div>
+            <div id="admin-panel-users" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>User & Access Management</h3>
+                <p class="small">Search, filter, and update user role/team/active state.</p>
+                <div class="grid" style="grid-template-columns: 2fr 1fr 1fr 1fr; gap:10px;">
+                  <div>
+                    <label>Search</label>
+                    <input id="adminUserSearch" placeholder="email / name / team" oninput="adminRenderUsers()" />
+                  </div>
+                  <div>
+                    <label>Role</label>
+                    <select id="adminUserRoleFilter" onchange="adminRenderUsers()">
+                      <option value="">all</option>
+                      <option value="admin">admin</option>
+                      <option value="user">user</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Active</label>
+                    <select id="adminUserActiveFilter" onchange="adminRenderUsers()">
+                      <option value="">all</option>
+                      <option value="true">active</option>
+                      <option value="false">inactive</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Actions</label>
+                    <div class="primary-actions" style="margin-top:0;">
+                      <button class="ghost" onclick="adminLoadUsers()">Refresh</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="adminUsersBulkBar" class="primary-actions" style="margin-top:10px;"></div>
+                <div id="adminUsersView" style="margin-top:10px;">Admin users table not loaded.</div>
+              </div>
+            </div>
 
-        <div class="grid">
-          <div class="card">
-            <h3>Access Review Report</h3>
-            <p class="small">Least-privilege posture, stale accounts, and team policy coverage.</p>
-            <button class="ghost" onclick="loadAdminAccessReviewUi()">Refresh Access Review</button>
-            <div id="adminAccessReviewView" style="margin-top:10px;">No access review report loaded.</div>
-          </div>
-          <div class="card">
-            <h3>Rule Governance Report</h3>
-            <p class="small">Suggestion approvals, high-severity workflow, versions, and rollbacks.</p>
-            <button class="ghost" onclick="loadAdminRuleGovernanceUi()">Refresh Governance</button>
-            <div id="adminRuleGovernanceView" style="margin-top:10px;">No governance report loaded.</div>
-          </div>
-        </div>
+            <div id="admin-panel-teams" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>Team Policy Management</h3>
+                <p class="small">Set per-team dataset/server scope and scoped-admin mode.</p>
+                <label>Team</label>
+                <input id="adminPolicyTeam" value="default" />
+                <label>Allowed Dataset Types</label>
+                <input id="adminPolicyDatasets" value="customer_profile,credit_facility" />
+                <label>Allowed Server URLs</label>
+                <input id="adminPolicyServers" value="*" />
+                <div class="check-row">
+                  <input type="checkbox" id="adminPolicyScopedAdmin" />
+                  <label for="adminPolicyScopedAdmin" style="margin:0;">Scoped admin (admins can only manage users in same team)</label>
+                </div>
+                <div class="primary-actions">
+                  <button onclick="adminSaveTeamPolicyUi()">Save Team Policy</button>
+                  <button class="ghost" onclick="adminLoadTeamPoliciesUi()">Refresh Team Policies</button>
+                </div>
+                <div id="adminTeamPoliciesPreview" class="card" style="padding:12px; margin-top:12px; background:#f7fbff;">Policy preview not loaded.</div>
+                <div id="adminTeamPoliciesView" style="margin-top:10px;">No team policies loaded.</div>
+              </div>
+            </div>
 
-        <div class="card">
-          <h3>Compliance Report</h3>
-          <p class="small">Quality, SLA alerts, audit events, and lineage coverage for recent runs.</p>
-          <button class="ghost" onclick="loadAdminComplianceUi()">Refresh Compliance</button>
-          <div id="adminComplianceView" style="margin-top:10px;">No compliance report loaded.</div>
+            <div id="admin-panel-servers" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>Shared MCP Server Catalog</h3>
+                <p class="small">Shows shared server entries and their reachability from the browser.</p>
+                <div class="primary-actions">
+                  <button class="ghost" onclick="loadAvailableMcpServers()">Refresh</button>
+                  <button class="ghost" onclick="adminCheckSharedServerHealth()">Check Health</button>
+                </div>
+                <div id="adminSharedServersSummary2" style="margin-top:10px;">No shared server summary loaded.</div>
+                <div class="card" style="margin-top:12px; padding:12px; background:#f7fbff;">
+                  <h4 style="margin:0 0 8px;">Edit Shared Server Catalog</h4>
+                  <p class="small" style="margin-top:0;">Admins can add/remove shared MCP servers. Users can connect to these from the MCP Session tab.</p>
+                  <div id="adminSharedServersEditor2">No shared server rows.</div>
+                  <div class="primary-actions" style="margin-top:10px;">
+                    <button class="ghost" onclick="addAdminSharedServerRow()">Add Shared Row</button>
+                    <button class="secondary" onclick="saveAdminSharedServers()">Save Shared Servers</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="admin-panel-jobs" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>Jobs</h3>
+                <p class="small">View scheduled jobs and run due jobs now.</p>
+                <div class="primary-actions">
+                  <button class="ghost" onclick="loadWorkflowJobsUi()">Refresh Jobs</button>
+                  <button class="ghost" onclick="runDueJobsUi()">Run Due Jobs</button>
+                </div>
+                <div id="adminJobsView" style="margin-top:10px;">No jobs loaded.</div>
+              </div>
+            </div>
+
+            <div id="admin-panel-alerts" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>Alerts</h3>
+                <p class="small">Filter and acknowledge alerts (stored locally in this browser).</p>
+                <div class="grid" style="grid-template-columns: 2fr 1fr 1fr; gap:10px;">
+                  <div>
+                    <label>Search</label>
+                    <input id="adminAlertSearch" placeholder="message / dataset / server" oninput="adminRenderAlerts()" />
+                  </div>
+                  <div>
+                    <label>Severity</label>
+                    <select id="adminAlertSeverityFilter" onchange="adminRenderAlerts()">
+                      <option value="">all</option>
+                      <option value="high">high</option>
+                      <option value="medium">medium</option>
+                      <option value="low">low</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Actions</label>
+                    <div class="primary-actions" style="margin-top:0;">
+                      <button class="ghost" onclick="loadAlertsUi()">Refresh</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="adminAlertsView" style="margin-top:10px;">No alerts loaded.</div>
+              </div>
+            </div>
+
+            <div id="admin-panel-audit" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>Admin Audit Log</h3>
+                <p class="small">Filter and view details in a side drawer.</p>
+                <div class="grid" style="grid-template-columns: 2fr 1fr 1fr; gap:10px;">
+                  <div>
+                    <label>Search</label>
+                    <input id="adminAuditSearch" placeholder="action / target / summary" oninput="adminRenderAudit()" />
+                  </div>
+                  <div>
+                    <label>Action</label>
+                    <input id="adminAuditActionFilter" placeholder="e.g. admin_update_user" oninput="adminRenderAudit()" />
+                  </div>
+                  <div>
+                    <label>Actions</label>
+                    <div class="primary-actions" style="margin-top:0;">
+                      <button class="ghost" onclick="loadAdminAuditLogsUi()">Refresh</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="adminAuditView" style="margin-top:10px;">No audit log loaded.</div>
+              </div>
+            </div>
+
+            <div id="admin-panel-reports" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>Reports</h3>
+                <details open>
+                  <summary><strong>Access Review Report</strong></summary>
+                  <div class="primary-actions">
+                    <button class="ghost" onclick="loadAdminAccessReviewUi()">Refresh</button>
+                  </div>
+                  <div id="adminAccessReviewView" style="margin-top:10px;">No access review report loaded.</div>
+                </details>
+                <details style="margin-top:10px;">
+                  <summary><strong>Rule Governance Report</strong></summary>
+                  <div class="primary-actions">
+                    <button class="ghost" onclick="loadAdminRuleGovernanceUi()">Refresh</button>
+                  </div>
+                  <div id="adminRuleGovernanceView" style="margin-top:10px;">No governance report loaded.</div>
+                </details>
+                <details style="margin-top:10px;">
+                  <summary><strong>Compliance Report</strong></summary>
+                  <div class="primary-actions">
+                    <button class="ghost" onclick="loadAdminComplianceUi()">Refresh</button>
+                  </div>
+                  <div id="adminComplianceView" style="margin-top:10px;">No compliance report loaded.</div>
+                </details>
+              </div>
+            </div>
+
+            <div id="admin-panel-danger" class="admin-panel" style="display:none;">
+              <div class="card">
+                <h3>Danger Zone</h3>
+                <p class="small">High-impact actions require confirmation. Last active admin protection still applies.</p>
+                <button class="danger" onclick="adminDangerDeactivateInactive()">Deactivate Stale Users (Confirm)</button>
+                <div class="small muted" style="margin-top:8px;">Deactivates active non-admin users who haven't logged in for N days.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
       </div>
@@ -1325,6 +1560,16 @@
       </div>
     </div>
 
+    <div id="detailDrawer" class="drawer" onclick="closeDrawer()">
+      <div class="drawer-card" onclick="event.stopPropagation()">
+        <div class="drawer-head">
+          <div style="font-weight:900;">Details</div>
+          <button class="ghost" onclick="closeDrawer()">Close</button>
+        </div>
+        <div id="drawerBody" class="small">No details.</div>
+      </div>
+    </div>
+
     <div id="chartTooltip" class="chart-tooltip"></div>
 
     <script>
@@ -1349,6 +1594,43 @@
       let workflowHistoryHintsHtml = "";
       let workflowHistoryPage = 1;
       const WORKFLOW_HISTORY_PAGE_SIZE = 10;
+      let adminPanel = "overview";
+      let adminLastRefreshIso = "";
+      let adminUsersPage = 1;
+      const ADMIN_USERS_PAGE_SIZE = 20;
+      let adminSelectedUserIds = new Set();
+      let adminJobsCache = [];
+      let adminAlertsCache = [];
+      let adminAuditCache = [];
+      const adminAuditStore = {};
+      const adminAlertAckStore = {};
+
+      function openDrawer(title, html) {
+        const d = document.getElementById("detailDrawer");
+        const body = document.getElementById("drawerBody");
+        if (!d || !body) return;
+        document.querySelector("#detailDrawer .drawer-head div").textContent = title || "Details";
+        body.innerHTML = html || "<p>No details.</p>";
+        d.classList.add("active");
+      }
+
+      function closeDrawer() {
+        const d = document.getElementById("detailDrawer");
+        if (d) d.classList.remove("active");
+      }
+
+      function relativeTime(isoValue) {
+        const ts = Date.parse(String(isoValue || ""));
+        if (!Number.isFinite(ts)) return "-";
+        const diff = Date.now() - ts;
+        const mins = Math.round(diff / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return `${mins} min ago`;
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return `${hrs} h ago`;
+        const days = Math.round(hrs / 24);
+        return `${days} d ago`;
+      }
 
       function renderWorkflowHistory(html) {
         const el = document.getElementById("workflowHistoryPane");
@@ -1372,6 +1654,33 @@
           document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
           document.getElementById(`tab-btn-${t}`).classList.toggle("active", t === tab);
         });
+      }
+
+      function adminSwitchPanel(panel) {
+        const allowed = ["overview", "users", "teams", "servers", "jobs", "alerts", "audit", "reports", "danger"];
+        adminPanel = allowed.includes(panel) ? panel : "overview";
+        allowed.forEach((p) => {
+          const pane = document.getElementById(`admin-panel-${p}`);
+          const btn = document.getElementById(`admin-nav-${p}`);
+          if (pane) pane.style.display = (p === adminPanel) ? "block" : "none";
+          if (btn) btn.classList.toggle("active", p === adminPanel);
+        });
+      }
+
+      function adminUpdateServerSelect() {
+        const sel = document.getElementById("adminServerSelect");
+        if (!sel) return;
+        const options = connectedServers.length ? connectedServers.map(s => ({ url: s.url, label: `${s.name || "mcp"} (${shortServerLabel(s.url)})` })) : [{ url: activeMcpBase, label: `active (${shortServerLabel(activeMcpBase)})` }];
+        sel.innerHTML = options.map(o => `<option value="${escapeHtml(o.url)}">${escapeHtml(o.label)}</option>`).join("");
+        sel.value = activeMcpBase;
+      }
+
+      function adminSelectServer(url) {
+        const base = normalizeBaseUrl(url);
+        if (!base) return;
+        setActiveServer(base);
+        // Keep admin page visible; if not logged in on that server, popup will guide.
+        adminRefreshAll().catch(() => {});
       }
 
       function switchGovernanceTab(tab) {
@@ -2286,6 +2595,7 @@
           switchTab("run");
         }
         setTabVisibilityForCurrentRole();
+        adminUpdateServerSelect();
       }
 
       function renderAnalyticsServerSelector() {
@@ -2410,10 +2720,13 @@
       }
 
       function renderAdminSharedServersEditor() {
-        const el = document.getElementById("adminSharedServersEditor");
-        if (!el) return;
+        const targets = [
+          document.getElementById("adminSharedServersEditor"),
+          document.getElementById("adminSharedServersEditor2"),
+        ].filter(Boolean);
+        if (!targets.length) return;
         if (!adminSharedMcpServersState.length) {
-          el.innerHTML = "<p>No shared server rows.</p>";
+          targets.forEach(t => { t.innerHTML = "<p>No shared server rows.</p>"; });
           return;
         }
         const head = "<tr><th>Name</th><th>Base URL</th><th>Active</th><th>Action</th></tr>";
@@ -2425,7 +2738,8 @@
             <td><button class="ghost" onclick="removeAdminSharedServerRow(${idx})">Delete</button></td>
           </tr>
         `).join("");
-        el.innerHTML = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+        const html = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+        targets.forEach(t => { t.innerHTML = html; });
       }
 
       function updateAdminSharedServerField(index, key, value) {
@@ -2633,28 +2947,58 @@
         adminUsersCache = [];
         sharedMcpServersState = [];
         adminSharedMcpServersState = [];
-        document.getElementById("adminOverview").innerHTML = "Admin overview not loaded.";
-        document.getElementById("adminUsersView").innerHTML = "Admin users table not loaded.";
-        document.getElementById("adminTeamPoliciesView").innerHTML = "No team policies loaded.";
-        document.getElementById("adminSharedServersSummary").innerHTML = "No shared server summary loaded.";
-        document.getElementById("adminOpsSummary").innerHTML = "No operational summary loaded.";
-        document.getElementById("adminAuditView").innerHTML = "No audit log loaded.";
-        document.getElementById("adminAccessReviewView").innerHTML = "No access review report loaded.";
-        document.getElementById("adminRuleGovernanceView").innerHTML = "No governance report loaded.";
-        document.getElementById("adminComplianceView").innerHTML = "No compliance report loaded.";
-        document.getElementById("sharedServersList").innerHTML = "No shared servers available.";
-        document.getElementById("adminSharedServersEditor").innerHTML = "No shared server rows.";
+        const reset = (id, text) => { const el = document.getElementById(id); if (el) el.innerHTML = text; };
+        reset("adminOverview", "Admin overview not loaded.");
+        reset("adminKpis", "");
+        reset("adminUsersView", "Admin users table not loaded.");
+        reset("adminUsersBulkBar", "");
+        reset("adminTeamPoliciesView", "No team policies loaded.");
+        reset("adminTeamPoliciesPreview", "Policy preview not loaded.");
+        reset("adminSharedServersSummary", "No shared server summary loaded.");
+        reset("adminSharedServersSummary2", "No shared server summary loaded.");
+        reset("adminOpsSummary", "No operational summary loaded.");
+        reset("adminAuditView", "No audit log loaded.");
+        reset("adminAccessReviewView", "No access review report loaded.");
+        reset("adminRuleGovernanceView", "No governance report loaded.");
+        reset("adminComplianceView", "No compliance report loaded.");
+        reset("sharedServersList", "No shared servers available.");
+        reset("adminSharedServersEditor", "No shared server rows.");
         showAuthPage(`<div class="ok">Logged out from ${escapeHtml(activeMcpBase)}</div>`);
       }
 
       function renderAdminUsers(users) {
         if (!users || !users.length) {
           document.getElementById("adminUsersView").innerHTML = "<p>No users found or admin access missing.</p>";
+          document.getElementById("adminUsersBulkBar").innerHTML = "";
           return;
         }
-        const head = "<tr><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th>Team</th><th>Active</th><th>Created</th><th>Last Login</th><th>Action</th></tr>";
-        const body = users.map((u) => `
+
+        const q = String(document.getElementById("adminUserSearch")?.value || "").trim().toLowerCase();
+        const roleFilter = String(document.getElementById("adminUserRoleFilter")?.value || "").trim().toLowerCase();
+        const activeFilter = String(document.getElementById("adminUserActiveFilter")?.value || "").trim().toLowerCase();
+
+        let filtered = users.slice();
+        if (q) {
+          filtered = filtered.filter(u => {
+            const hay = `${u.email || ""} ${u.name || ""} ${u.team || ""}`.toLowerCase();
+            return hay.includes(q);
+          });
+        }
+        if (roleFilter) filtered = filtered.filter(u => String(u.role || "").toLowerCase() === roleFilter);
+        if (activeFilter) filtered = filtered.filter(u => String(!!u.is_active) === activeFilter);
+
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / ADMIN_USERS_PAGE_SIZE));
+        adminUsersPage = Math.max(1, Math.min(totalPages, adminUsersPage));
+        const start = (adminUsersPage - 1) * ADMIN_USERS_PAGE_SIZE;
+        const end = Math.min(total, start + ADMIN_USERS_PAGE_SIZE);
+        const slice = filtered.slice(start, end);
+
+        const allSelectedOnPage = slice.length && slice.every(u => adminSelectedUserIds.has(u.id));
+        const head = "<tr><th><input type=\"checkbox\" id=\"adminUsersSelectAll\" onchange=\"adminToggleSelectAllOnPage(this.checked)\" /></th><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th>Team</th><th>Active</th><th>Created</th><th>Last Login</th><th>Action</th></tr>";
+        const body = slice.map((u) => `
           <tr>
+            <td><input type="checkbox" ${adminSelectedUserIds.has(u.id) ? "checked" : ""} onchange="adminToggleUserSelected(${u.id}, this.checked)" /></td>
             <td>${escapeHtml(u.id)}</td>
             <td>${escapeHtml(u.email)}</td>
             <td>${escapeHtml(u.name)}</td>
@@ -2668,12 +3012,167 @@
             <td>
               <input id="admin-active-${u.id}" type="checkbox" ${u.is_active ? "checked" : ""} />
             </td>
-            <td>${escapeHtml(formatIso(u.created_at))}</td>
-            <td>${escapeHtml(formatIso(u.last_login_at))}</td>
+            <td title="${escapeHtml(formatIso(u.created_at))}">${escapeHtml(relativeTime(u.created_at))}</td>
+            <td title="${escapeHtml(formatIso(u.last_login_at))}">${escapeHtml(u.last_login_at ? relativeTime(u.last_login_at) : "-")}</td>
             <td><button class="ghost" onclick="adminSaveUser(${u.id})">Save</button></td>
           </tr>
         `).join("");
-        document.getElementById("adminUsersView").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+        document.getElementById("adminUsersView").innerHTML = `
+          <div class="inline-controls" style="margin:0 0 10px;">
+            <button class="ghost" ${adminUsersPage <= 1 ? "disabled" : ""} onclick="adminSetUsersPage(${adminUsersPage - 1})">Prev</button>
+            <div class="small muted">Page <strong>${adminUsersPage}</strong> / ${totalPages} (showing ${start + 1}-${end} of ${total})</div>
+            <button class="ghost" ${adminUsersPage >= totalPages ? "disabled" : ""} onclick="adminSetUsersPage(${adminUsersPage + 1})">Next</button>
+          </div>
+          <table><thead>${head}</thead><tbody>${body}</tbody></table>
+        `;
+        const selAll = document.getElementById("adminUsersSelectAll");
+        if (selAll) selAll.checked = !!allSelectedOnPage;
+
+        adminRenderBulkBar();
+      }
+
+      function adminRenderUsers() {
+        renderAdminUsers(adminUsersCache || []);
+      }
+
+      function adminSetUsersPage(page) {
+        adminUsersPage = Math.max(1, Number(page || 1));
+        adminRenderUsers();
+      }
+
+      function adminToggleUserSelected(userId, checked) {
+        const id = Number(userId);
+        if (!Number.isFinite(id)) return;
+        if (checked) adminSelectedUserIds.add(id);
+        else adminSelectedUserIds.delete(id);
+        adminRenderBulkBar();
+      }
+
+      function adminGetFilteredUsers() {
+        const users = (adminUsersCache || []).slice();
+        const q = String(document.getElementById("adminUserSearch")?.value || "").trim().toLowerCase();
+        const roleFilter = String(document.getElementById("adminUserRoleFilter")?.value || "").trim().toLowerCase();
+        const activeFilter = String(document.getElementById("adminUserActiveFilter")?.value || "").trim().toLowerCase();
+
+        let filtered = users;
+        if (q) {
+          filtered = filtered.filter(u => {
+            const hay = `${u.email || ""} ${u.name || ""} ${u.team || ""}`.toLowerCase();
+            return hay.includes(q);
+          });
+        }
+        if (roleFilter) filtered = filtered.filter(u => String(u.role || "").toLowerCase() === roleFilter);
+        if (activeFilter) filtered = filtered.filter(u => String(!!u.is_active) === activeFilter);
+        return filtered;
+      }
+
+      function adminGetPageSlice(filtered) {
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / ADMIN_USERS_PAGE_SIZE));
+        adminUsersPage = Math.max(1, Math.min(totalPages, adminUsersPage));
+        const start = (adminUsersPage - 1) * ADMIN_USERS_PAGE_SIZE;
+        const end = Math.min(total, start + ADMIN_USERS_PAGE_SIZE);
+        return { start, end, total, totalPages, slice: filtered.slice(start, end) };
+      }
+
+      function adminToggleSelectAllOnPage(checked) {
+        const filtered = adminGetFilteredUsers();
+        const { slice } = adminGetPageSlice(filtered);
+        slice.forEach(u => {
+          if (checked) adminSelectedUserIds.add(u.id);
+          else adminSelectedUserIds.delete(u.id);
+        });
+        adminRenderUsers();
+      }
+
+      function adminClearSelection() {
+        adminSelectedUserIds = new Set();
+        adminRenderUsers();
+      }
+
+      function adminRenderBulkBar() {
+        const el = document.getElementById("adminUsersBulkBar");
+        if (!el) return;
+        const count = (adminSelectedUserIds || new Set()).size;
+        if (!count) {
+          el.innerHTML = `<div class="small muted">Select users to enable bulk actions.</div>`;
+          return;
+        }
+        el.innerHTML = `
+          <div class="card" style="padding:10px; background:#fff7ed; width:100%;">
+            <div class="small" style="margin-bottom:8px;"><strong>${count}</strong> user(s) selected</div>
+            <div class="grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px; align-items:end;">
+              <div>
+                <label>Set Role</label>
+                <select id="adminBulkRole">
+                  <option value="">keep</option>
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                </select>
+              </div>
+              <div>
+                <label>Set Team</label>
+                <input id="adminBulkTeam" placeholder="keep" />
+              </div>
+              <div>
+                <label>Active</label>
+                <select id="adminBulkActive">
+                  <option value="">keep</option>
+                  <option value="true">activate</option>
+                  <option value="false">deactivate</option>
+                </select>
+              </div>
+              <div class="primary-actions" style="margin-top:0;">
+                <button onclick="adminApplyBulkUpdates()">Apply</button>
+                <button class="ghost" onclick="adminClearSelection()">Clear</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      async function adminApplyBulkUpdates() {
+        try {
+          if (!ensureLoggedIn("Bulk user update", (html) => { document.getElementById("adminUsersView").innerHTML = html; })) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            showPopup("Admin Required", "Admin role required.", "err");
+            return;
+          }
+
+          const ids = Array.from(adminSelectedUserIds || []);
+          if (!ids.length) return;
+
+          const role = String(document.getElementById("adminBulkRole")?.value || "");
+          const team = String(document.getElementById("adminBulkTeam")?.value || "").trim();
+          const activeRaw = String(document.getElementById("adminBulkActive")?.value || "");
+          const setActive = (activeRaw === "true") ? true : (activeRaw === "false") ? false : null;
+
+          const byId = {};
+          (adminUsersCache || []).forEach(u => { byId[u.id] = u; });
+          const requests = ids.map((id) => {
+            const u = byId[id] || {};
+            const payload = {
+              user_id: id,
+              role: role || (u.role || "user"),
+              team: team || (u.team || "default"),
+              is_active: (setActive === null) ? !!u.is_active : !!setActive,
+            };
+            return mcpCallTo(activeMcpBase, "admin_update_user", payload);
+          });
+
+          const results = await Promise.allSettled(requests);
+          const ok = results.filter(r => r.status === "fulfilled").length;
+          const fail = results.length - ok;
+          if (fail) {
+            showPopup("Bulk Update Completed", `${ok} updated, ${fail} failed. Check Audit Log for details.`, "warn");
+          } else {
+            showPopup("Bulk Update Completed", `${ok} users updated.`, "ok");
+          }
+          await adminLoadUsers();
+        } catch (e) {
+          showPopup("Bulk Update Failed", parseErrorMessage(e), "err");
+        }
       }
 
       function renderAdminSharedServersSummary() {
@@ -2685,7 +3184,103 @@
           "Status": s.is_active ? "active" : "inactive",
           "Source": s.source || "shared",
         }));
-        el.innerHTML = rows.length ? renderTable(rows) : "<p>No shared servers available.</p>";
+        const html = rows.length ? renderTable(rows) : "<p>No shared servers available.</p>";
+        el.innerHTML = html;
+        const el2 = document.getElementById("adminSharedServersSummary2");
+        if (el2) el2.innerHTML = html;
+      }
+
+      async function adminCheckSharedServerHealth() {
+        const el = document.getElementById("adminSharedServersSummary2");
+        const rows = (sharedMcpServersState || []).slice();
+        if (!rows.length) {
+          if (el) el.innerHTML = "<p>No shared servers available.</p>";
+          return;
+        }
+
+        const checkOne = async (baseUrl) => {
+          const base = normalizeBaseUrl(baseUrl);
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 2200);
+          try {
+            const res = await fetch(`${base}/health`, { signal: ctrl.signal });
+            const ok = res.ok;
+            return { ok, status: ok ? "reachable" : `http_${res.status}` };
+          } catch (e) {
+            return { ok: false, status: "unreachable" };
+          } finally {
+            clearTimeout(t);
+          }
+        };
+
+        const results = await Promise.all(rows.map(async (s) => {
+          const r = await checkOne(s.base_url);
+          return {
+            name: s.name || "-",
+            base_url: s.base_url,
+            status: r.status,
+            ok: r.ok,
+          };
+        }));
+
+        const outRows = results.map((r) => ({
+          "Name": r.name,
+          "URL": r.base_url,
+          "Health": r.ok ? "reachable" : "unreachable",
+          "Detail": r.status,
+        }));
+        const html = `
+          <div class="small muted">Health check probes <code>/health</code> from your browser. Unreachable may be blocked by network/CORS.</div>
+          ${renderTable(outRows)}
+        `;
+        if (el) el.innerHTML = html;
+      }
+
+      async function adminDangerDeactivateInactive() {
+        try {
+          if (!ensureLoggedIn("Danger Zone", renderAdminOverview)) return;
+          const session = getAuthSession(activeMcpBase);
+          if (!session || !session.user || session.user.role !== "admin") {
+            showPopup("Admin Required", "Admin role required.", "err");
+            return;
+          }
+          const raw = prompt("Deactivate users who haven't logged in for N days (excluding admins). Enter days:", "90");
+          if (raw === null) return;
+          const days = Math.max(1, Number(raw || 90));
+          if (!Number.isFinite(days)) {
+            showPopup("Invalid Input", "Enter a numeric day count.", "err");
+            return;
+          }
+          const cutoffMs = Date.now() - (days * 24 * 60 * 60 * 1000);
+          const candidates = (adminUsersCache || []).filter((u) => {
+            if (!u || !u.is_active) return false;
+            if (String(u.role || "") === "admin") return false;
+            const ts = Date.parse(String(u.last_login_at || u.created_at || ""));
+            if (!Number.isFinite(ts)) return false;
+            return ts < cutoffMs;
+          });
+          if (!candidates.length) {
+            showPopup("No Candidates", `No active non-admin users older than ${days} days.`, "ok");
+            return;
+          }
+          const ok = confirm(`Deactivate ${candidates.length} users who are older than ${days} days without login?\n\nThis will set is_active=false for each user.`);
+          if (!ok) return;
+
+          const results = await Promise.allSettled(
+            candidates.map(u => mcpCallTo(activeMcpBase, "admin_update_user", {
+              user_id: u.id,
+              role: u.role || "user",
+              team: u.team || "default",
+              is_active: false,
+            }))
+          );
+          const updated = results.filter(r => r.status === "fulfilled").length;
+          const failed = results.length - updated;
+          showPopup("Deactivation Completed", `${updated} deactivated, ${failed} failed.`, failed ? "warn" : "ok");
+          await adminLoadUsers();
+        } catch (e) {
+          showPopup("Danger Zone Failed", parseErrorMessage(e), "err");
+        }
       }
 
       function renderAdminOpsSummary(jobs, alerts) {
@@ -2728,6 +3323,146 @@
               </div>
             `).join("")}
           </div>
+        `);
+      }
+
+      function adminSeverityBadge(sev) {
+        const s = String(sev || "").toLowerCase();
+        if (s === "high") return `<span class="badge badge-err">high</span>`;
+        if (s === "medium") return `<span class="badge badge-warn">medium</span>`;
+        if (s === "low") return `<span class="badge badge-ok">low</span>`;
+        return `<span class="badge badge-neutral">${escapeHtml(sev || "-")}</span>`;
+      }
+
+      function adminRenderJobs() {
+        const el = document.getElementById("adminJobsView");
+        if (!el) return;
+        const jobs = adminJobsCache || [];
+        if (!jobs.length) {
+          el.innerHTML = "<p>No jobs loaded.</p>";
+          return;
+        }
+        const head = "<tr><th>Job ID</th><th>Name</th><th>Dataset</th><th>Process</th><th>Interval</th><th>SLA</th><th>Next Run</th><th>Status</th><th>Action</th></tr>";
+        const body = jobs.map((x) => {
+          const btn = x.is_active
+            ? `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', false)">Pause</button>`
+            : `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', true)">Resume</button>`;
+          return `
+            <tr>
+              <td>${escapeHtml(x.job_id || "-")}</td>
+              <td>${escapeHtml(x.name || "-")}</td>
+              <td>${escapeHtml(`${x.provider || "-"}/${x.dataset_type || "-"}`)}</td>
+              <td>${escapeHtml(x.process_type || "-")}</td>
+              <td>${escapeHtml(`${x.interval_minutes || "-"}m`)}</td>
+              <td>${escapeHtml(x.sla_min_quality ?? "-")}</td>
+              <td>${escapeHtml(formatIso(x.next_run_at))}</td>
+              <td>${escapeHtml(`${x.is_active ? "active" : "paused"} (${x.last_status || "-"})`)}</td>
+              <td>${btn}</td>
+            </tr>
+          `;
+        }).join("");
+        el.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function adminRenderAlerts() {
+        const el = document.getElementById("adminAlertsView");
+        if (!el) return;
+        const q = String(document.getElementById("adminAlertSearch")?.value || "").trim().toLowerCase();
+        const sevFilter = String(document.getElementById("adminAlertSeverityFilter")?.value || "").trim().toLowerCase();
+        let alerts = (adminAlertsCache || []).slice();
+        if (q) {
+          alerts = alerts.filter(a => JSON.stringify(a || {}).toLowerCase().includes(q));
+        }
+        if (sevFilter) {
+          alerts = alerts.filter(a => String(a.severity || "").toLowerCase() === sevFilter);
+        }
+        if (!alerts.length) {
+          el.innerHTML = "<p>No alerts match current filters.</p>";
+          return;
+        }
+        const head = "<tr><th>Time</th><th>Source</th><th>Severity</th><th>Message</th><th>Status</th><th>Action</th></tr>";
+        const body = alerts.map((a) => {
+          const key = String(a.alert_id || `${a.created_at || ""}-${a.message || ""}`.slice(0, 80));
+          const acked = !!adminAlertAckStore[key];
+          return `
+            <tr>
+              <td title="${escapeHtml(formatIso(a.created_at))}">${escapeHtml(relativeTime(a.created_at))}</td>
+              <td>${escapeHtml(a.source || "-")}</td>
+              <td>${adminSeverityBadge(a.severity)}</td>
+              <td>${escapeHtml(shortText(a.message || "-", 180))}</td>
+              <td>${acked ? '<span class="badge badge-ok">acknowledged</span>' : '<span class="badge badge-neutral">new</span>'}</td>
+              <td>
+                <button class="ghost" onclick="adminAckAlert('${escapeHtml(key)}')">${acked ? "Unack" : "Ack"}</button>
+                <button class="ghost" onclick="adminViewAlertDetail('${escapeHtml(key)}')">View</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
+        el.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function adminAckAlert(key) {
+        const k = String(key || "");
+        if (!k) return;
+        adminAlertAckStore[k] = !adminAlertAckStore[k];
+        adminRenderAlerts();
+      }
+
+      function adminViewAlertDetail(key) {
+        const k = String(key || "");
+        const alerts = (adminAlertsCache || []).slice();
+        const found = alerts.find(a => String(a.alert_id || `${a.created_at || ""}-${a.message || ""}`.slice(0, 80)) === k) || null;
+        if (!found) return;
+        openDrawer("Alert Detail", `
+          <div class="metric"><strong>Time:</strong> ${escapeHtml(formatIso(found.created_at))}</div>
+          <div class="metric"><strong>Source:</strong> ${escapeHtml(found.source || "-")}</div>
+          <div class="metric"><strong>Severity:</strong> ${escapeHtml(found.severity || "-")}</div>
+          <div class="metric"><strong>Message:</strong> ${escapeHtml(found.message || "-")}</div>
+          <h4 style="margin-top:12px;">Raw</h4>
+          <pre class="output" style="white-space:pre-wrap;">${escapeHtml(JSON.stringify(found, null, 2))}</pre>
+        `);
+      }
+
+      function adminRenderAudit() {
+        const el = document.getElementById("adminAuditView");
+        if (!el) return;
+        const q = String(document.getElementById("adminAuditSearch")?.value || "").trim().toLowerCase();
+        const actionFilter = String(document.getElementById("adminAuditActionFilter")?.value || "").trim().toLowerCase();
+        let rows = (adminAuditCache || []).slice();
+        if (q) rows = rows.filter(x => JSON.stringify(x || {}).toLowerCase().includes(q));
+        if (actionFilter) rows = rows.filter(x => String(x.action || "").toLowerCase().includes(actionFilter));
+        if (!rows.length) {
+          el.innerHTML = "<p>No audit events match current filters.</p>";
+          return;
+        }
+        const head = "<tr><th>Time</th><th>Action</th><th>Target</th><th>Summary</th><th>Admin</th><th></th></tr>";
+        const body = rows.map((x, idx) => {
+          const key = String(x.event_id || `${x.created_at || ""}-${x.action || ""}-${idx}`);
+          adminAuditStore[key] = x;
+          return `
+            <tr>
+              <td title="${escapeHtml(formatIso(x.created_at))}">${escapeHtml(relativeTime(x.created_at))}</td>
+              <td><code>${escapeHtml(x.action || "-")}</code></td>
+              <td>${escapeHtml(`${x.target_type || "-"}:${x.target_id || "-"}`)}</td>
+              <td>${escapeHtml(shortText(x.summary || "-", 120))}</td>
+              <td>${escapeHtml(String(x.admin_user_id ?? "-"))}</td>
+              <td><button class="ghost" onclick="adminViewAuditDetail('${escapeHtml(key)}')">View</button></td>
+            </tr>
+          `;
+        }).join("");
+        el.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function adminViewAuditDetail(key) {
+        const x = adminAuditStore[String(key || "")];
+        if (!x) return;
+        openDrawer("Audit Event Detail", `
+          <div class="metric"><strong>Time:</strong> ${escapeHtml(formatIso(x.created_at))}</div>
+          <div class="metric"><strong>Action:</strong> <code>${escapeHtml(x.action || "-")}</code></div>
+          <div class="metric"><strong>Target:</strong> ${escapeHtml(`${x.target_type || "-"}:${x.target_id || "-"}`)}</div>
+          <div class="metric"><strong>Summary:</strong> ${escapeHtml(x.summary || "-")}</div>
+          <h4 style="margin-top:12px;">Details</h4>
+          <pre class="output" style="white-space:pre-wrap;">${escapeHtml(JSON.stringify(x.details || {}, null, 2))}</pre>
         `);
       }
 
@@ -2929,14 +3664,8 @@
             return [];
           }
           const resp = await mcpCall("admin_list_audit_logs", { limit: 200 });
-          const rows = (resp.result || []).map((x) => ({
-            "Time": formatIso(x.created_at),
-            "Admin User ID": x.admin_user_id,
-            "Action": x.action || "-",
-            "Target": `${x.target_type || "-"}:${x.target_id || "-"}`,
-            "Summary": shortText(x.summary || "-", 140),
-          }));
-          renderAdminAudit(rows.length ? renderTable(rows) : "<p>No admin audit events found.</p>");
+          adminAuditCache = resp.result || [];
+          adminRenderAudit();
           return resp.result || [];
         } catch (e) {
           renderError(renderAdminAudit, parseErrorMessage(e));
@@ -2952,24 +3681,34 @@
             renderAdminOverview("<p>Admin access required.</p>");
             return;
           }
-          await loadAvailableMcpServers();
-          await adminLoadUsers();
-          const [jobsResp, alertsResp, teamPolicies] = await Promise.all([
-            mcpCall("list_workflow_jobs", { limit: 100 }),
-            mcpCall("list_alerts", { limit: 100 }),
-            adminLoadTeamPoliciesUi(),
+          adminLastRefreshIso = new Date().toISOString();
+          const lastEl = document.getElementById("adminLastRefresh");
+          if (lastEl) lastEl.textContent = `Last refresh: ${formatIso(adminLastRefreshIso)}`;
+
+          await Promise.allSettled([
+            loadAvailableMcpServers(),
+            adminLoadUsers(),
           ]);
-          await Promise.all([
+
+          const jobsResp = await mcpCall("list_workflow_jobs", { limit: 100 });
+          const alertsResp = await mcpCall("list_alerts", { limit: 100 });
+          const teamPolicies = await adminLoadTeamPoliciesUi();
+
+          adminJobsCache = jobsResp.result || [];
+          adminAlertsCache = alertsResp.result || [];
+          adminRenderJobs();
+          adminRenderAlerts();
+
+          await Promise.allSettled([
             loadAdminAuditLogsUi(),
             loadAdminAccessReviewUi(),
             loadAdminRuleGovernanceUi(),
             loadAdminComplianceUi(),
           ]);
-          const jobs = jobsResp.result || [];
-          const alerts = alertsResp.result || [];
+
           renderAdminSharedServersSummary();
-          renderAdminOpsSummary(jobs, alerts);
-          renderAdminOverviewCards(adminUsersCache, jobs, alerts, teamPolicies);
+          renderAdminOpsSummary(adminJobsCache, adminAlertsCache);
+          renderAdminOverviewCards(adminUsersCache, adminJobsCache, adminAlertsCache, teamPolicies);
         } catch (e) {
           renderError(renderAdminOverview, parseErrorMessage(e));
         }
