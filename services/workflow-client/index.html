@@ -389,6 +389,63 @@
         max-height: 520px;
         overflow: auto;
       }
+      .wizard { margin-top: 8px; }
+      .wizard-steps {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 8px 0 2px 0;
+      }
+      .wizard-step {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #e1e8f5;
+        background: #ffffff;
+        border-radius: 999px;
+        padding: 8px 12px;
+        color: #314b77;
+        font-weight: 800;
+        font-size: 13px;
+      }
+      .wizard-step .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #cbd5e1;
+      }
+      .wizard-step.active { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+      .wizard-step.active .dot { background: #2563eb; }
+      .wizard-step.done { border-color: #86efac; background: #ecfdf5; color: #166534; }
+      .wizard-step.done .dot { background: #22c55e; }
+      .wizard-step.err { border-color: #fecaca; background: #fff1f2; color: #991b1b; }
+      .wizard-step.err .dot { background: #ef4444; }
+      .rule-pick {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 10px;
+        align-items: start;
+        padding: 10px;
+        border: 1px solid #e1e8f5;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        background: #ffffff;
+      }
+      .rule-pick .title { font-weight: 900; }
+      .rule-pick .meta { color: #5a7097; font-size: 13px; margin-top: 4px; }
+      .rule-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #e1e8f5;
+        background: #fbfcfe;
+        font-size: 12px;
+        color: #35507d;
+        margin-right: 6px;
+        margin-top: 6px;
+      }
       .run-list {
         display: flex;
         flex-direction: column;
@@ -1174,6 +1231,7 @@
       <div class="toolbar">
         <button class="tab-btn active" id="tab-btn-run" onclick="switchTab('run')">Run Workflow</button>
         <button class="tab-btn" id="tab-btn-rules" onclick="switchTab('rules')">DQ Rules Editor</button>
+        <button class="tab-btn" id="tab-btn-onboarding" onclick="switchTab('onboarding')">Onboarding</button>
         <button class="tab-btn" id="tab-btn-session" onclick="switchTab('session')">MCP Session</button>
         <button class="tab-btn" id="tab-btn-llm" onclick="switchTab('llm')">LLM Config</button>
         <button class="tab-btn" id="tab-btn-governance" onclick="switchTab('governance')">Governance</button>
@@ -1296,6 +1354,81 @@
 	          </div>
 	          <div id="workflowAnalyticsOutput" class="output">Click <strong>Workflow Analytics</strong> to load trends and correction-rule usage.</div>
 	        </div>
+      </section>
+
+      <section id="tab-onboarding" class="tab">
+        <div class="grid">
+          <div class="card" style="grid-column: 1 / -1;">
+            <h3>Dataset Onboarding Wizard</h3>
+            <p class="small" style="margin-top:4px;">
+              Connect a MCP server, inspect the dataset, generate starter rules, run a pilot, then promote rules.
+            </p>
+
+            <div class="wizard">
+              <div class="wizard-steps" id="onbSteps"></div>
+              <div class="wizard-body">
+                <div class="grid" style="margin-top:10px;">
+                  <div class="card" style="margin:0;">
+                    <h4>1. Select Dataset</h4>
+                    <label>Provider</label>
+                    <select id="onbProvider"></select>
+                    <label>Dataset Type</label>
+                    <select id="onbDatasetType"></select>
+                    <label>Dataset ID</label>
+                    <input id="onbDatasetId" value="onboarding-dataset" />
+                    <label>Sample Limit</label>
+                    <input id="onbSampleLimit" type="number" value="50" min="5" max="500" />
+                    <div class="primary-actions" style="margin-top:12px;">
+                      <button class="btn-primary" onclick="onbLoadSources()">Load Sources</button>
+                      <button class="ghost" onclick="onbUseRunSelection()">Use Run Workflow Selection</button>
+                      <button class="secondary" onclick="onbReset()">Reset</button>
+                    </div>
+                    <div class="small muted" style="margin-top:8px;">
+                      Uses the <strong>active</strong> MCP server: <code id="onbActiveServer">-</code>
+                    </div>
+                  </div>
+
+                  <div class="card" style="margin:0;">
+                    <h4>2-6. Actions</h4>
+                    <div class="primary-actions">
+                      <button class="ghost" onclick="onbLoadModel()">Load Data Model</button>
+                      <button class="ghost" onclick="onbLoadSample()">Preview Sample</button>
+                      <button class="ghost" onclick="onbGenerateRules()">Generate Starter Rules</button>
+                      <button class="btn-secondary" onclick="onbPilot()">Run Pilot (Simulate)</button>
+                      <button class="btn-primary" onclick="onbPromote()">Promote Selected Rules</button>
+                    </div>
+                    <div class="small muted" style="margin-top:10px;">
+                      Pilot uses <code>simulate_rules</code> (no rule changes). Promote saves to your rules config.
+                    </div>
+                    <div id="onbStatus" style="margin-top:10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="split-output" style="margin-top:14px;">
+              <div class="pane">
+                <div class="pane-head">
+                  <h4>Wizard Output</h4>
+                  <div class="small muted" id="onbOutputHint">Run a step to see results.</div>
+                </div>
+                <div class="pane-body" id="onbOutput">
+                  <p class="muted">No onboarding output yet.</p>
+                </div>
+              </div>
+              <div class="pane">
+                <div class="pane-head">
+                  <h4>Starter Rules</h4>
+                  <div class="small muted" id="onbRulesHint">Generate suggestions to review.</div>
+                </div>
+                <div class="pane-body" id="onbRules">
+                  <p class="muted">No starter rules yet.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
       </section>
 
       <section id="tab-rules" class="tab">
@@ -1947,7 +2080,7 @@
         if (tab === "llm" && !isLlmTabEnabledForActiveServer()) {
           tab = "run";
         }
-        ["run", "rules", "session", "llm", "governance", "help", "admin"].forEach(t => {
+        ["run", "rules", "onboarding", "session", "llm", "governance", "help", "admin"].forEach(t => {
           document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
           document.getElementById(`tab-btn-${t}`).classList.toggle("active", t === tab);
         });
@@ -1994,7 +2127,7 @@
       function setTabVisibilityForCurrentRole() {
         const session = getAuthSession(activeMcpBase);
         const isAdmin = !!(session && session.user && session.user.role === "admin");
-        const tabIds = ["run", "rules", "session", "llm", "governance", "help", "admin"];
+        const tabIds = ["run", "rules", "onboarding", "session", "llm", "governance", "help", "admin"];
         tabIds.forEach((t) => {
           const btn = document.getElementById(`tab-btn-${t}`);
           if (!btn) return;
@@ -2637,6 +2770,471 @@
         return "";
       }
 
+      // ---------- onboarding wizard ----------
+      const onbState = {
+        step: 1,
+        provider: "BANK_A",
+        dataset_type: "customer_profile",
+        dataset_id: "onboarding-dataset",
+        sample_limit: 50,
+        model_html: "",
+        sample_rows: [],
+        suggestions: [],
+        selected: {},
+        pilot_result: null,
+        promoted: false,
+      };
+
+      function onbStepsDef() {
+        return [
+          { id: 1, label: "Select" },
+          { id: 2, label: "Model" },
+          { id: 3, label: "Sample" },
+          { id: 4, label: "Suggest" },
+          { id: 5, label: "Pilot" },
+          { id: 6, label: "Promote" },
+        ];
+      }
+
+      function onbRenderSteps() {
+        const el = document.getElementById("onbSteps");
+        if (!el) return;
+        el.innerHTML = onbStepsDef().map(s => {
+          let cls = "wizard-step";
+          if (onbState.step === s.id) cls += " active";
+          else if (onbState.step > s.id) cls += " done";
+          return `<div class="${cls}"><span class="dot"></span>${escapeHtml(s.label)}</div>`;
+        }).join("");
+      }
+
+      function onbStatus(html) {
+        const el = document.getElementById("onbStatus");
+        if (el) el.innerHTML = html || "";
+      }
+
+      function onbSetOutput(html, hint = "") {
+        const el = document.getElementById("onbOutput");
+        const h = document.getElementById("onbOutputHint");
+        if (el) el.innerHTML = html || "<p class=\"muted\">No onboarding output yet.</p>";
+        if (h) h.textContent = hint || "";
+      }
+
+      function onbSetRules(html, hint = "") {
+        const el = document.getElementById("onbRules");
+        const h = document.getElementById("onbRulesHint");
+        if (el) el.innerHTML = html || "<p class=\"muted\">No starter rules yet.</p>";
+        if (h) h.textContent = hint || "";
+      }
+
+      function onbReadInputs() {
+        const providerEl = document.getElementById("onbProvider");
+        const dtEl = document.getElementById("onbDatasetType");
+        const didEl = document.getElementById("onbDatasetId");
+        const limEl = document.getElementById("onbSampleLimit");
+        if (providerEl) onbState.provider = providerEl.value || onbState.provider;
+        if (dtEl) onbState.dataset_type = dtEl.value || onbState.dataset_type;
+        if (didEl) onbState.dataset_id = (didEl.value || onbState.dataset_id).trim();
+        if (limEl) onbState.sample_limit = Math.max(5, Math.min(500, Number(limEl.value || onbState.sample_limit)));
+        const serverEl = document.getElementById("onbActiveServer");
+        if (serverEl) serverEl.textContent = activeMcpBase || "-";
+      }
+
+      function onbReset() {
+        onbState.step = 1;
+        onbState.model_html = "";
+        onbState.sample_rows = [];
+        onbState.suggestions = [];
+        onbState.selected = {};
+        onbState.pilot_result = null;
+        onbState.promoted = false;
+        onbRenderSteps();
+        onbStatus("");
+        onbSetOutput("<p class=\"muted\">No onboarding output yet.</p>", "Run a step to see results.");
+        onbSetRules("<p class=\"muted\">No starter rules yet.</p>", "Generate suggestions to review.");
+      }
+
+      function onbUseRunSelection() {
+        try {
+          const provider = document.getElementById("provider")?.value || "BANK_A";
+          const dt = document.getElementById("datasetType")?.value || "customer_profile";
+          const did = document.getElementById("datasetId")?.value || "onboarding-dataset";
+          const pEl = document.getElementById("onbProvider");
+          const dtEl = document.getElementById("onbDatasetType");
+          const didEl = document.getElementById("onbDatasetId");
+          if (pEl) pEl.value = provider;
+          if (dtEl) dtEl.value = dt;
+          if (didEl) didEl.value = did;
+          onbReadInputs();
+          onbStatus(`<div class="ok">Loaded selection from Run Workflow.</div>`);
+          onbRenderSteps();
+        } catch (_) {}
+      }
+
+      function renderDataModelHtml(modelRows, relResp, baseUrl) {
+        const grouped = {};
+        (modelRows || []).forEach(r => {
+          if (!grouped[r.table_name]) grouped[r.table_name] = [];
+          grouped[r.table_name].push(r);
+        });
+        const cards = Object.entries(grouped).map(([tableName, cols]) => {
+          const body = cols.map(c => {
+            const keyTags = [];
+            if (c.is_primary_key) keyTags.push("PK");
+            if (c.is_foreign_key) keyTags.push("FK");
+            return `
+              <div class="er-row">
+                <div class="er-col-name">${escapeHtml(c.column_name)}</div>
+                <div class="er-col-type">${escapeHtml(c.data_type)}</div>
+                <div>${keyTags.length ? keyTags.map(k => `<span class="er-col-key">${k}</span>`).join(" ") : ""}</div>
+              </div>
+            `;
+          }).join("");
+          return `<div class="er-card"><div class="er-head">${escapeHtml(tableName)}</div>${body}</div>`;
+        }).join("");
+
+        const explicit = (relResp || {}).explicit_relations || [];
+        const inferred = (relResp || {}).inferred_relations || [];
+        const relList = explicit.length
+          ? explicit.map(r => `<li><strong>${escapeHtml(r.source_table)}.${escapeHtml(r.source_column)}</strong> → ${escapeHtml(r.target_table)}.${escapeHtml(r.target_column)}</li>`).join("")
+          : inferred.map(r => `<li><strong>${escapeHtml(r.source_table)}.${escapeHtml(r.source_column)}</strong> → ${escapeHtml(r.target_table)}.${escapeHtml(r.target_column)} <em>(inferred)</em></li>`).join("");
+
+        return `
+          <h4>Data Model (${escapeHtml(baseUrl)})</h4>
+          <div class="er-wrap">${cards || "<p>No model metadata found.</p>"}</div>
+          <div class="er-rels">
+            <strong>Relations</strong>
+            ${relList ? `<ul>${relList}</ul>` : "<p>No relations found.</p>"}
+            <div class="er-legend">PK = Primary Key, FK = Foreign Key</div>
+          </div>
+        `;
+      }
+
+      function hasRule(rules, field, type) {
+        return (rules || []).some(r => (r.field === field) && (r.type === type));
+      }
+
+      function onbLocalSuggestions(datasetType, rows, existingRules) {
+        const suggestions = [];
+        if (!Array.isArray(rows) || !rows.length) return suggestions;
+        const byField = {};
+        rows.forEach(r => {
+          Object.entries(r || {}).forEach(([k, v]) => {
+            if (!byField[k]) byField[k] = [];
+            byField[k].push(v);
+          });
+        });
+        Object.entries(byField).forEach(([field, values]) => {
+          const nonNull = values.filter(v => v !== null && v !== undefined && v !== "");
+          const nullRatio = 1 - (nonNull.length / (values.length || 1));
+          if (nullRatio > 0 && nullRatio < 0.3 && !hasRule(existingRules, field, "not_null")) {
+            const sid = `local-${Math.random().toString(16).slice(2, 10)}`;
+            suggestions.push({
+              suggestion_id: sid,
+              dataset_type: datasetType,
+              reason: `Heuristic: field '${field}' is mostly populated (${Math.round((1-nullRatio)*100)}% present).`,
+              assessment_rule: { id: `ONB-${sid.slice(-6)}`, field, type: "not_null", severity: "medium" },
+              correction_rule: null,
+              llm: { provider: "heuristic", model: "local" },
+              __source: "heuristic",
+            });
+          }
+          const numeric = nonNull.length >= 2 && nonNull.every(v => typeof v === "number");
+          if (numeric && !hasRule(existingRules, field, "range")) {
+            const min = Math.min(...nonNull);
+            const max = Math.max(...nonNull);
+            const sid = `local-${Math.random().toString(16).slice(2, 10)}`;
+            suggestions.push({
+              suggestion_id: sid,
+              dataset_type: datasetType,
+              reason: `Heuristic: numeric guardrails inferred for '${field}'.`,
+              assessment_rule: { id: `ONB-${sid.slice(-6)}`, field, type: "range", severity: "medium", params: { min, max } },
+              correction_rule: null,
+              llm: { provider: "heuristic", model: "local" },
+              __source: "heuristic",
+            });
+          }
+          const categorical = nonNull.length >= 3 && nonNull.every(v => typeof v === "string");
+          if (categorical && !hasRule(existingRules, field, "allowed_values")) {
+            const distinct = Array.from(new Set(nonNull)).sort();
+            if (distinct.length > 1 && distinct.length <= 12) {
+              const sid = `local-${Math.random().toString(16).slice(2, 10)}`;
+              suggestions.push({
+                suggestion_id: sid,
+                dataset_type: datasetType,
+                reason: `Heuristic: controlled domain values inferred for '${field}'.`,
+                assessment_rule: { id: `ONB-${sid.slice(-6)}`, field, type: "allowed_values", severity: "medium", params: { values: distinct } },
+                correction_rule: { field, type: "fill_default_if_null", default: distinct[0] },
+                llm: { provider: "heuristic", model: "local" },
+                __source: "heuristic",
+              });
+            }
+          }
+        });
+        return suggestions.slice(0, 8);
+      }
+
+      function onbRenderSuggestions() {
+        const list = onbState.suggestions || [];
+        if (!list.length) {
+          onbSetRules("<p class=\"muted\">No starter rules found. Enable LLM suggestions or increase sample size.</p>", "No suggestions.");
+          return;
+        }
+        const html = list.map((s, idx) => {
+          const a = s.assessment_rule || {};
+          const c = s.correction_rule || null;
+          const key = String(s.suggestion_id || `s${idx}`);
+          const checked = onbState.selected[key] !== false; // default true
+          const sev = String(a.severity || "medium").toLowerCase();
+          const pills = [
+            `<span class="rule-pill"><b>Field</b> ${escapeHtml(a.field || "-")}</span>`,
+            `<span class="rule-pill"><b>Type</b> ${escapeHtml(a.type || "-")}</span>`,
+            `<span class="rule-pill"><b>Severity</b> ${escapeHtml(sev)}</span>`,
+            `<span class="rule-pill"><b>Source</b> ${escapeHtml((s.llm || {}).provider || s.__source || "-")}</span>`,
+          ].join("");
+          const params = a.params ? Object.entries(a.params).map(([k,v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" | ") : "";
+          return `
+            <div class="rule-pick">
+              <div>
+                <input type="checkbox" ${checked ? "checked" : ""} onchange="onbToggleSuggestion('${escapeHtml(key)}', this.checked)" />
+              </div>
+              <div>
+                <div class="title">${escapeHtml(a.id || "rule")} <span class="badge ${sev === "high" ? "err" : "ok"}" style="margin-left:8px;">${escapeHtml(sev)}</span></div>
+                <div class="meta">${escapeHtml(s.reason || "")}</div>
+                <div>${pills}</div>
+                ${params ? `<div class="small muted" style="margin-top:6px;"><strong>Params:</strong> ${escapeHtml(params)}</div>` : ""}
+                ${c ? `<div class="small" style="margin-top:6px;"><strong>Correction:</strong> ${escapeHtml(c.type)} on ${escapeHtml(c.field)} (default=${escapeHtml(c.default)})</div>` : ""}
+              </div>
+            </div>
+          `;
+        }).join("");
+        onbSetRules(html, `${list.length} suggestion(s). Uncheck to exclude.`);
+      }
+
+      function onbToggleSuggestion(suggestionId, enabled) {
+        onbState.selected[String(suggestionId)] = !!enabled;
+      }
+
+      async function onbLoadSources() {
+        try {
+          if (!ensureLoggedIn("Onboarding: Load Sources", (h) => onbStatus(h))) return;
+          onbReadInputs();
+          const serverEl = document.getElementById("onbActiveServer");
+          if (serverEl) serverEl.textContent = activeMcpBase || "-";
+          const resp = await mcpCall("list_data_sources", {});
+          const sources = resp.result || [];
+          const providers = sources.map(s => String(s.provider)).filter(Boolean);
+          const pEl = document.getElementById("onbProvider");
+          if (pEl) {
+            pEl.innerHTML = providers.map(p => `<option>${escapeHtml(p)}</option>`).join("") || "<option>BANK_A</option>";
+            pEl.value = onbState.provider;
+          }
+          const dtEl = document.getElementById("onbDatasetType");
+          const currentProvider = (pEl ? pEl.value : onbState.provider) || "BANK_A";
+          const match = sources.find(s => String(s.provider) === currentProvider) || sources[0] || { dataset_types: ["customer_profile"] };
+          const types = (match.dataset_types || ["customer_profile"]).map(String);
+          if (dtEl) {
+            dtEl.innerHTML = types.map(t => `<option>${escapeHtml(t)}</option>`).join("");
+            dtEl.value = onbState.dataset_type;
+          }
+          onbReadInputs();
+          onbState.step = 1;
+          onbRenderSteps();
+          onbStatus(`<div class="ok">Sources loaded from ${escapeHtml(activeMcpBase)}.</div>`);
+          onbSetOutput(`<div class="ok">Ready. Select provider/dataset type, then load model or sample.</div>`, "Selection ready.");
+        } catch (e) {
+          onbStatus(`<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`);
+          renderError((h) => onbStatus(h), parseErrorMessage(e));
+        }
+      }
+
+      async function onbLoadModel() {
+        try {
+          if (!ensureLoggedIn("Onboarding: Load Data Model", (h) => onbStatus(h))) return;
+          onbReadInputs();
+          const [modelResp, relResp] = await Promise.all([
+            mcpCall("show_data_model"),
+            mcpCall("show_foreign_key_relations"),
+          ]);
+          const html = renderDataModelHtml(modelResp.result || [], relResp.result || {}, activeMcpBase);
+          onbState.model_html = html;
+          onbState.step = Math.max(onbState.step, 2);
+          onbRenderSteps();
+          onbSetOutput(html, "Data model loaded.");
+          onbStatus(`<div class="ok">Data model loaded.</div>`);
+        } catch (e) {
+          onbStatus(`<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`);
+          renderError((h) => onbStatus(h), parseErrorMessage(e));
+        }
+      }
+
+      async function onbLoadSample() {
+        try {
+          if (!ensureLoggedIn("Onboarding: Preview Sample", (h) => onbStatus(h))) return;
+          onbReadInputs();
+          const resp = await mcpCall("preview_dataset", { dataset_type: onbState.dataset_type, limit: onbState.sample_limit });
+          const rows = resp.result || [];
+          onbState.sample_rows = rows;
+          onbState.step = Math.max(onbState.step, 3);
+          onbRenderSteps();
+          onbSetOutput(`<h4>Sample Preview (${escapeHtml(onbState.dataset_type)} / ${escapeHtml(onbState.provider)})</h4>${rows.length ? renderTable(rows.slice(0, 10)) : "<p>No rows returned.</p>"}`, `Loaded ${rows.length} row(s). Showing up to 10.`);
+          onbStatus(`<div class="ok">Loaded ${rows.length} sample row(s).</div>`);
+        } catch (e) {
+          onbStatus(`<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`);
+          renderError((h) => onbStatus(h), parseErrorMessage(e));
+        }
+      }
+
+      async function onbGenerateRules() {
+        try {
+          if (!ensureLoggedIn("Onboarding: Generate Rules", (h) => onbStatus(h))) return;
+          onbReadInputs();
+          if (!onbState.sample_rows.length) {
+            await onbLoadSample();
+          }
+          const existingResp = await mcpCall("get_rules_config", {});
+          const cfg = (existingResp.result || {}).config || {};
+          const existingRules = ((cfg.assessment_rules || {})[onbState.dataset_type] || []);
+
+          let suggestions = [];
+          try {
+            const sResp = await mcpCall("suggest_rules", { dataset_type: onbState.dataset_type, limit: onbState.sample_limit });
+            suggestions = (sResp.result || {}).suggestions || [];
+          } catch (_) {
+            suggestions = [];
+          }
+          const local = onbLocalSuggestions(onbState.dataset_type, onbState.sample_rows, existingRules);
+          const merged = [];
+          const seen = new Set();
+          [...(suggestions || []), ...(local || [])].forEach((s) => {
+            const a = s.assessment_rule || {};
+            const key = `${a.field}|${a.type}`;
+            if (!a.field || !a.type) return;
+            if (hasRule(existingRules, a.field, a.type)) return;
+            if (seen.has(key)) return;
+            seen.add(key);
+            merged.push(s);
+          });
+          onbState.suggestions = merged.slice(0, 10);
+          onbState.selected = {};
+          onbState.suggestions.forEach(s => { onbState.selected[String(s.suggestion_id)] = true; });
+          onbState.step = Math.max(onbState.step, 4);
+          onbRenderSteps();
+          onbRenderSuggestions();
+          onbStatus(`<div class="ok">Generated ${onbState.suggestions.length} starter rule suggestion(s).</div>`);
+          onbSetOutput(`<div class="ok">Review starter rules on the right. Then run the pilot simulation.</div>`, "Suggestions generated.");
+        } catch (e) {
+          onbStatus(`<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`);
+          renderError((h) => onbStatus(h), parseErrorMessage(e));
+        }
+      }
+
+      async function onbPilot() {
+        try {
+          if (!ensureLoggedIn("Onboarding: Pilot", (h) => onbStatus(h))) return;
+          onbReadInputs();
+          if (!onbState.suggestions.length) {
+            await onbGenerateRules();
+          }
+          const existingResp = await mcpCall("get_rules_config", {});
+          const cfg = (existingResp.result || {}).config || {};
+          const existingRules = ((cfg.assessment_rules || {})[onbState.dataset_type] || []);
+          const selected = (onbState.suggestions || [])
+            .filter(s => onbState.selected[String(s.suggestion_id)] !== false)
+            .map(s => s.assessment_rule)
+            .filter(Boolean);
+          const combined = [...existingRules, ...selected];
+          const resp = await mcpCall("simulate_rules", {
+            provider: onbState.provider,
+            dataset_type: onbState.dataset_type,
+            dataset_id: onbState.dataset_id,
+            limit: onbState.sample_limit,
+            assessment_rules: combined,
+          });
+          const r = resp.result || {};
+          onbState.pilot_result = r;
+          const q = r.quality_index ?? "-";
+          const failed = `${r.failed_checks ?? 0} / ${r.total_checks ?? 0}`;
+          const top = (r.violations || []).slice(0, 10).map(v => ({
+            "Record": v.record_index,
+            "Rule": v.rule_id,
+            "Field": v.field,
+            "Severity": v.severity,
+            "Reason": v.reason,
+          }));
+          onbState.step = Math.max(onbState.step, 5);
+          onbRenderSteps();
+          onbSetOutput(
+            `
+              <h4>Pilot Result (Simulate)</h4>
+              <div class="kpis">
+                <div class="kpi"><div class="label">Quality Index</div><div class="value">${escapeHtml(String(q))}%</div></div>
+                <div class="kpi"><div class="label">Failed Checks</div><div class="value">${escapeHtml(String(failed))}</div></div>
+                <div class="kpi"><div class="label">Violations</div><div class="value">${escapeHtml(String((r.violations || []).length))}</div></div>
+              </div>
+              <h4 style="margin-top:10px;">Top Violations</h4>
+              ${top.length ? renderTable(top) : "<p>No violations in pilot run.</p>"}
+            `,
+            "Pilot completed."
+          );
+          onbStatus(`<div class="ok">Pilot completed. Review violations, then promote if acceptable.</div>`);
+        } catch (e) {
+          onbStatus(`<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`);
+          renderError((h) => onbStatus(h), parseErrorMessage(e));
+        }
+      }
+
+      async function onbPromote() {
+        try {
+          if (!ensureLoggedIn("Onboarding: Promote", (h) => onbStatus(h))) return;
+          onbReadInputs();
+          if (!onbState.suggestions.length) {
+            await onbGenerateRules();
+          }
+          const selected = (onbState.suggestions || [])
+            .filter(s => onbState.selected[String(s.suggestion_id)] !== false);
+          if (!selected.length) {
+            showPopup("No Rules Selected", "Select at least one starter rule to promote.", "warn");
+            return;
+          }
+          const existingResp = await mcpCall("get_rules_config", {});
+          const cfg = (existingResp.result || {}).config || {};
+          cfg.assessment_rules = cfg.assessment_rules || {};
+          cfg.correction_rules = cfg.correction_rules || {};
+          const ar = Array.isArray(cfg.assessment_rules[onbState.dataset_type]) ? cfg.assessment_rules[onbState.dataset_type] : [];
+          const cr = Array.isArray(cfg.correction_rules[onbState.dataset_type]) ? cfg.correction_rules[onbState.dataset_type] : [];
+
+          selected.forEach(s => {
+            const a = s.assessment_rule || null;
+            if (a && !hasRule(ar, a.field, a.type)) ar.push(a);
+            const c = s.correction_rule || null;
+            if (c && !cr.some(r => r.field === c.field && r.type === c.type)) cr.push(c);
+          });
+          cfg.assessment_rules[onbState.dataset_type] = ar;
+          cfg.correction_rules[onbState.dataset_type] = cr;
+
+          await mcpCall("save_rules_config", { config: cfg });
+          onbState.promoted = true;
+          onbState.step = 6;
+          onbRenderSteps();
+          onbStatus(`<div class="ok">Promoted ${selected.length} rule(s) to your rules config.</div>`);
+          onbSetOutput(
+            `
+              <div class="ok"><strong>Promoted:</strong> ${escapeHtml(String(selected.length))} rule(s) saved.</div>
+              <p class="small muted">Next: go to <strong>DQ Rules Editor</strong> to review, or run a full assessment in <strong>Run Workflow</strong>.</p>
+              <div class="primary-actions">
+                <button class="ghost" onclick="switchTab('rules')">Go to DQ Rules Editor</button>
+                <button class="ghost" onclick="switchTab('run')">Go to Run Workflow</button>
+              </div>
+            `,
+            "Promotion completed."
+          );
+          await loadRulesEditor();
+        } catch (e) {
+          onbStatus(`<div class="err"><strong>Error:</strong> ${escapeHtml(parseErrorMessage(e))}</div>`);
+          renderError((h) => onbStatus(h), parseErrorMessage(e));
+        }
+      }
+
       function loadAuthSessions() {
         try {
           const raw = sessionStorage.getItem("idqe_auth_sessions");
@@ -2726,6 +3324,7 @@
         } else {
           switchTab("run");
         }
+        try { onbReadInputs(); onbRenderSteps(); } catch (_) {}
       }
 
       function ensureLoggedIn(contextLabel = "this action", renderer = null) {
@@ -4140,6 +4739,7 @@
         await loadAlertsUi();
         await loadIntegrationStatusUi();
         await adminRefreshAll();
+        try { onbLoadSources(); } catch (_) {}
       }
 
       async function adminSaveUser(userId) {
@@ -4255,44 +4855,7 @@
             mcpCall("show_data_model"),
             mcpCall("show_foreign_key_relations"),
           ]);
-          const rows = modelResp.result || [];
-          const grouped = {};
-          rows.forEach(r => {
-            if (!grouped[r.table_name]) grouped[r.table_name] = [];
-            grouped[r.table_name].push(r);
-          });
-
-          const cards = Object.entries(grouped).map(([tableName, cols]) => {
-            const body = cols.map(c => {
-              const keyTags = [];
-              if (c.is_primary_key) keyTags.push("PK");
-              if (c.is_foreign_key) keyTags.push("FK");
-              return `
-                <div class="er-row">
-                  <div class="er-col-name">${escapeHtml(c.column_name)}</div>
-                  <div class="er-col-type">${escapeHtml(c.data_type)}</div>
-                  <div>${keyTags.length ? keyTags.map(k => `<span class="er-col-key">${k}</span>`).join(" ") : ""}</div>
-                </div>
-              `;
-            }).join("");
-            return `<div class="er-card"><div class="er-head">${escapeHtml(tableName)}</div>${body}</div>`;
-          }).join("");
-
-          const explicit = (relResp.result || {}).explicit_relations || [];
-          const inferred = (relResp.result || {}).inferred_relations || [];
-          const relList = explicit.length
-            ? explicit.map(r => `<li><strong>${escapeHtml(r.source_table)}.${escapeHtml(r.source_column)}</strong> → ${escapeHtml(r.target_table)}.${escapeHtml(r.target_column)}</li>`).join("")
-            : inferred.map(r => `<li><strong>${escapeHtml(r.source_table)}.${escapeHtml(r.source_column)}</strong> → ${escapeHtml(r.target_table)}.${escapeHtml(r.target_column)} <em>(inferred)</em></li>`).join("");
-
-          renderSession(`
-            <h4>Data Model (${escapeHtml(activeMcpBase)})</h4>
-            <div class="er-wrap">${cards || "<p>No model metadata found.</p>"}</div>
-            <div class="er-rels">
-              <strong>Relations</strong>
-              ${relList ? `<ul>${relList}</ul>` : "<p>No relations found.</p>"}
-              <div class="er-legend">PK = Primary Key, FK = Foreign Key</div>
-            </div>
-          `);
+          renderSession(renderDataModelHtml(modelResp.result || [], relResp.result || {}, activeMcpBase));
         } catch (e) {
           renderError(renderSession, parseErrorMessage(e));
         }

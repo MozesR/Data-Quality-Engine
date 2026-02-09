@@ -86,3 +86,29 @@ docker compose -f docker-compose.demo.yml up --build -d
 2. Change dataset type.
 3. Expected:
    - Correction runs automatically and output updates.
+
+## 9. Dataset Onboarding Wizard
+
+1. Go to `Onboarding`.
+2. Click `Load Sources`.
+3. Select:
+   - Provider: `BANK_A`
+   - Dataset Type: `customer_profile`
+4. Click `Load Data Model`.
+5. Expected:
+   - ER-style model cards are shown in `Wizard Output`.
+6. Click `Preview Sample`.
+7. Expected:
+   - A sample table (up to 10 rows) is shown.
+8. Click `Generate Starter Rules`.
+9. Expected:
+   - Starter rules appear on the right with checkboxes.
+10. Click `Run Pilot (Simulate)`.
+11. Expected:
+   - Pilot KPIs + top violations are shown.
+12. Uncheck at least one suggested rule and click `Promote Selected Rules`.
+13. Expected:
+   - Success message and navigation buttons to Rules/Run tabs.
+14. Go to `DQ Rules Editor` and click `Load Rules`.
+15. Expected:
+   - Promoted rules are present in the rules config.
