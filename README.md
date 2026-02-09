@@ -275,14 +275,14 @@ Add in enterprise platform:
 1. Copy template:
 
 ```bash
-cp /Users/mozesrahangmetan/Documents/DQ/.env.prod.example /Users/mozesrahangmetan/Documents/DQ/.env.prod
+cp /DQ/.env.prod.example /DQ/.env.prod
 ```
 
-2. Edit `/Users/mozesrahangmetan/Documents/DQ/.env.prod` with real values.
+2. Edit `/DQ/.env.prod` with real values.
 
 3. Deploy:
 
 ```bash
-docker compose --env-file /Users/mozesrahangmetan/Documents/DQ/.env.prod -f /Users/mozesrahangmetan/Documents/DQ/docker-compose.prod.yml pull
-docker compose --env-file /Users/mozesrahangmetan/Documents/DQ/.env.prod -f /Users/mozesrahangmetan/Documents/DQ/docker-compose.prod.yml up -d
+docker compose --env-file /DQ/.env.prod -f /DQ/docker-compose.prod.yml pull
+docker compose --env-file /DQ/.env.prod -f /DQ/docker-compose.prod.yml up -d
 ```
