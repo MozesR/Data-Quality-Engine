@@ -5350,7 +5350,13 @@
             "Version ID": x.version_id,
             "Note": x.note || "-",
             "Created At": formatIso(x.created_at),
-            "Action": htmlCell(`<button class="ghost" onclick="prefillRuleVersion('${escapeHtml(x.version_id)}')">Use</button>`),
+            "Action": htmlCell(`
+              <div class="rule-actions">
+                <button class="ghost" onclick="setRuleVersionTarget('${escapeHtml(x.version_id)}','from')">Set From</button>
+                <button class="ghost" onclick="setRuleVersionTarget('${escapeHtml(x.version_id)}','to')">Set To</button>
+                <button class="ghost" onclick="setRuleVersionTarget('${escapeHtml(x.version_id)}','rollback')">Rollback</button>
+              </div>
+            `),
           }));
           renderRuleVersions(rows.length ? renderTable(rows) : "<p>No rule versions found.</p>");
         } catch (e) {
@@ -5358,10 +5364,35 @@
         }
       }
 
+      function setRuleVersionTarget(versionId, target) {
+        const vid = String(versionId || "").trim();
+        if (!vid) return;
+        const t = String(target || "").trim().toLowerCase();
+        const fromEl = document.getElementById("ruleDiffFrom");
+        const toEl = document.getElementById("ruleDiffTo");
+        const rbEl = document.getElementById("ruleRollbackId");
+        if (t === "from" && fromEl) fromEl.value = vid;
+        if (t === "to" && toEl) toEl.value = vid;
+        if (t === "rollback" && rbEl) rbEl.value = vid;
+      }
+
+      // Backwards compatible: old "Use" toggles From/To for convenience.
       function prefillRuleVersion(versionId) {
-        document.getElementById("ruleDiffFrom").value = versionId;
-        document.getElementById("ruleDiffTo").value = versionId;
-        document.getElementById("ruleRollbackId").value = versionId;
+        const vid = String(versionId || "").trim();
+        if (!vid) return;
+        const fromEl = document.getElementById("ruleDiffFrom");
+        const toEl = document.getElementById("ruleDiffTo");
+        if (!fromEl || !toEl) return;
+        if (!fromEl.value) {
+          fromEl.value = vid;
+          return;
+        }
+        if (!toEl.value || toEl.value === fromEl.value) {
+          toEl.value = vid;
+          return;
+        }
+        // If both are set, rotate: set To to the clicked value.
+        toEl.value = vid;
       }
 
       async function diffRuleVersionsUi() {
