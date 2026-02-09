@@ -24,7 +24,7 @@ docker compose version
 From project root:
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd .
 docker compose -f docker-compose.demo.yml up --build
 ```
 
@@ -97,7 +97,7 @@ docker compose -f docker-compose.demo.yml up --build
 
 The DQ engine reads LLM settings from:
 
-- `/Users/mozesrahangmetan/Documents/DQ/config/llm.demo.yaml`
+- `./config/llm.demo.yaml`
 
 Current demo default:
 
@@ -126,7 +126,7 @@ Two options:
    - Edit YAML
    - Click `Save Rules`
 2. Edit file directly:
-   - `/Users/mozesrahangmetan/Documents/DQ/config/rules.demo.yaml`
+   - `./config/rules.demo.yaml`
 
 Structure:
 

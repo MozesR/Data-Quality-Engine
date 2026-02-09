@@ -10,7 +10,7 @@ Place GitHub README screenshots in this folder:
 After adding files, commit and push:
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd .
 git add docs/images README.md
 git commit -m "Add README screenshots"
 git push

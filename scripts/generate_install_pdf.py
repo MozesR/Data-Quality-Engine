@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-SRC = Path('/Users/mozesrahangmetan/Documents/DQ/docs/install-enterprise.md')
-OUT = Path('/Users/mozesrahangmetan/Documents/DQ/docs/install-enterprise.pdf')
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "docs" / "install-enterprise.md"
+OUT = ROOT / "docs" / "install-enterprise.pdf"
 
 
 def escape_pdf_text(s: str) -> str:

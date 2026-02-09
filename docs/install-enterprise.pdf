@@ -4,7 +4,7 @@
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
 2 0 obj
-<< /Length 2511 >>
+<< /Length 2301 >>
 stream
 BT
 /F1 10 Tf
@@ -72,15 +72,15 @@ T*
 T*
 (Manifests provided:) Tj
 T*
-(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/namespace.yaml`) Tj
+(* `./deploy/k8s/namespace.yaml`) Tj
 T*
-(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/dq-engine.yaml`) Tj
+(* `./deploy/k8s/dq-engine.yaml`) Tj
 T*
-(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/mcp-server.yaml`) Tj
+(* `./deploy/k8s/mcp-server.yaml`) Tj
 T*
-(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/workflow-client.yaml`) Tj
+(* `./deploy/k8s/workflow-client.yaml`) Tj
 T*
-(* `/Users/mozesrahangmetan/Documents/DQ/deploy/k8s/configmap-llm.yaml`) Tj
+(* `./deploy/k8s/configmap-llm.yaml`) Tj
 T*
 () Tj
 T*
@@ -122,7 +122,7 @@ T*
 T*
 () Tj
 T*
-(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+(    cd .) Tj
 T*
 (    docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .) Tj
 T*
@@ -133,7 +133,7 @@ ET
 endstream
 endobj
 3 0 obj
-<< /Length 2543 >>
+<< /Length 2438 >>
 stream
 BT
 /F1 10 Tf
@@ -155,9 +155,9 @@ T*
 T*
 (6.1 DQ Rules) Tj
 T*
-(* Test baseline: `/Users/mozesrahangmetan/Documents/DQ/config/rules.demo.yaml`) Tj
+(* Test baseline: `./config/rules.demo.yaml`) Tj
 T*
-(* Production baseline: `/Users/mozesrahangmetan/Documents/DQ/config/rules.prod.yaml`) Tj
+(* Production baseline: `./config/rules.prod.yaml`) Tj
 T*
 () Tj
 T*
@@ -167,7 +167,7 @@ T*
 T*
 (* Production: use `openai` and managed key rotation) Tj
 T*
-(* Config file: `/Users/mozesrahangmetan/Documents/DQ/config/llm.prod.yaml`) Tj
+(* Config file: `./config/llm.prod.yaml`) Tj
 T*
 () Tj
 T*
@@ -344,15 +344,15 @@ xref
 0000000000 65535 f 
 0000000015 00000 n 
 0000000085 00000 n 
-0000002648 00000 n 
-0000005243 00000 n 
-0000006157 00000 n 
-0000006226 00000 n 
-0000006352 00000 n 
-0000006478 00000 n 
-0000006604 00000 n 
+0000002438 00000 n 
+0000004928 00000 n 
+0000005842 00000 n 
+0000005911 00000 n 
+0000006037 00000 n 
+0000006163 00000 n 
+0000006289 00000 n 
 trailer
 << /Size 10 /Root 9 0 R >>
 startxref
-6653
+6338
 %%EOF

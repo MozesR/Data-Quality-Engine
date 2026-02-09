@@ -30,7 +30,7 @@ Important production behavior:
 ## 3. Build and Publish Images
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd .
 docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .
 docker build -f services/mcp-server/Dockerfile -t <registry>/idqe-mcp-server:1.0.0 .
 docker build -f services/workflow-client/Dockerfile -t <registry>/idqe-workflow-client:1.0.0 services/workflow-client
@@ -64,7 +64,7 @@ For `mcp-server`:
 Update image names in `docker-compose.prod.yml`, then run:
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd .
 export AUTH_SECRET='<strong secret>'
 export CORS_ALLOW_ORIGINS='https://idqe.company.com'
 docker compose -f docker-compose.prod.yml up -d

@@ -6,7 +6,7 @@
 \line
 Version: 1.0\line
 Date: February 7, 2026\line
-Document Path: /Users/mozesrahangmetan/Documents/DQ/docs/install-enterprise.pdf\line
+Document Path: ./docs/install-enterprise.pdf\line
 \line
 \b 1. Scope\b0\line
 This guide describes how to deploy IDQE in:\line
@@ -23,8 +23,8 @@ IDQE consists of:\line
 - PostgreSQL (workflow run metadata and demo/test data source)\line
 \line
 Main configuration files:\line
-- /Users/mozesrahangmetan/Documents/DQ/config/rules.prod.yaml\line
-- /Users/mozesrahangmetan/Documents/DQ/config/llm.prod.yaml\line
+- ./config/rules.prod.yaml\line
+- ./config/llm.prod.yaml\line
 \line
 \b 3. Enterprise Architecture (Recommended)\b0\line
 Use containerized services on Kubernetes:\line
@@ -36,11 +36,11 @@ Use containerized services on Kubernetes:\line
 - CI/CD with signed images and vulnerability scans\line
 \line
 Provided manifests:\line
-- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/namespace.yaml\line
-- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/dq-engine.yaml\line
-- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/mcp-server.yaml\line
-- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/workflow-client.yaml\line
-- /Users/mozesrahangmetan/Documents/DQ/deploy/k8s/configmap-llm.yaml\line
+- ./deploy/k8s/namespace.yaml\line
+- ./deploy/k8s/dq-engine.yaml\line
+- ./deploy/k8s/mcp-server.yaml\line
+- ./deploy/k8s/workflow-client.yaml\line
+- ./deploy/k8s/configmap-llm.yaml\line
 \line
 \b 4. Prerequisites\b0\line
 \b 4.1 Test Environment\b0\line
@@ -61,7 +61,7 @@ Provided manifests:\line
 \b 5. Build and Publish Container Images\b0\line
 From repository root:\line
 \f1
-cd /Users/mozesrahangmetan/Documents/DQ\line
+cd .\line
 docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .\line
 docker build -f services/mcp-server/Dockerfile -t <registry>/idqe-mcp-server:1.0.0 .\line
 docker build -f services/workflow-client/Dockerfile -t <registry>/idqe-workflow-client:1.0.0 services/workflow-client\line
@@ -72,13 +72,13 @@ docker push <registry>/idqe-workflow-client:1.0.0\line
 \line
 \b 6. Configure Environment-Specific Values\b0\line
 \b 6.1 Rules\b0\line
-- Test: start from /Users/mozesrahangmetan/Documents/DQ/config/rules.demo.yaml\line
-- Production: use /Users/mozesrahangmetan/Documents/DQ/config/rules.prod.yaml\line
+- Test: start from ./config/rules.demo.yaml\line
+- Production: use ./config/rules.prod.yaml\line
 \line
 \b 6.2 LLM\b0\line
 - Test: set provider=mock or a sandbox key\line
 - Production: set provider=openai and production key controls\line
-- File: /Users/mozesrahangmetan/Documents/DQ/config/llm.prod.yaml\line
+- File: ./config/llm.prod.yaml\line
 \line
 \b 6.3 Secrets\b0\line
 Never store API keys in Git.\line

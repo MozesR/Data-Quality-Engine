@@ -23,11 +23,11 @@ Recommended enterprise topology:
 - Observability stack (logs, metrics, traces)
 
 Manifests provided:
-- `/DQ/deploy/k8s/namespace.yaml`
-- `/DQ/deploy/k8s/dq-engine.yaml`
-- `/DQ/deploy/k8s/mcp-server.yaml`
-- `/DQ/deploy/k8s/workflow-client.yaml`
-- `/U/DQ/deploy/k8s/configmap-llm.yaml`
+- `./deploy/k8s/namespace.yaml`
+- `./deploy/k8s/dq-engine.yaml`
+- `./deploy/k8s/mcp-server.yaml`
+- `./deploy/k8s/workflow-client.yaml`
+- `./deploy/k8s/configmap-llm.yaml`
 
 ## 4. Prerequisites
 ### 4.1 Test Environment
@@ -47,7 +47,7 @@ Manifests provided:
 From repository root:
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd .
 docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .
 docker build -f services/mcp-server/Dockerfile -t <registry>/idqe-mcp-server:1.0.0 .
 docker build -f services/workflow-client/Dockerfile -t <registry>/idqe-workflow-client:1.0.0 services/workflow-client
@@ -58,13 +58,13 @@ docker push <registry>/idqe-workflow-client:1.0.0
 
 ## 6. Configure Environment Values
 ### 6.1 DQ Rules
-- Test baseline: `/DQ/config/rules.demo.yaml`
-- Production baseline: `/DQ/config/rules.prod.yaml`
+- Test baseline: `./config/rules.demo.yaml`
+- Production baseline: `./config/rules.prod.yaml`
 
 ### 6.2 LLM
 - Test: use `mock` or sandbox API key
 - Production: use `openai` and managed key rotation
-- Config file: `/DQ/config/llm.prod.yaml`
+- Config file: `./config/llm.prod.yaml`
 
 ### 6.3 Secrets
 Store outside Git:

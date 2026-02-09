@@ -7,7 +7,7 @@ endobj
 << /Type /Pages /Count 8 /Kids [11 0 R 12 0 R 13 0 R 14 0 R 15 0 R 16 0 R 17 0 R 18 0 R] >>
 endobj
 3 0 obj
-<< /Length 1816 >>
+<< /Length 1744 >>
 stream
 BT
 /F1 10 Tf
@@ -23,7 +23,7 @@ T*
 T*
 (DEMO INSTALLATION GUIDE) Tj
 T*
-(/Users/mozesrahangmetan/Documents/DQ/docs/install-demo-detailed.md) Tj
+(docs/install-demo-detailed.md) Tj
 T*
 (======================================================================) Tj
 T*
@@ -81,7 +81,7 @@ T*
 T*
 () Tj
 T*
-(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+(    cd .) Tj
 T*
 () Tj
 T*
@@ -265,13 +265,13 @@ ET
 endstream
 endobj
 5 0 obj
-<< /Length 1882 >>
+<< /Length 1810 >>
 stream
 BT
 /F1 10 Tf
 50 790 Td
 12 TL
-(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+(    cd .) Tj
 T*
 (    python3 scripts/test_mcp_flow.py) Tj
 T*
@@ -327,7 +327,7 @@ T*
 T*
 (PRODUCTION INSTALLATION GUIDE) Tj
 T*
-(/Users/mozesrahangmetan/Documents/DQ/docs/install-production-detailed.md) Tj
+(docs/install-production-detailed.md) Tj
 T*
 (======================================================================) Tj
 T*
@@ -394,7 +394,7 @@ ET
 endstream
 endobj
 6 0 obj
-<< /Length 2302 >>
+<< /Length 2232 >>
 stream
 BT
 /F1 10 Tf
@@ -412,7 +412,7 @@ T*
 T*
 () Tj
 T*
-(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+(    cd .) Tj
 T*
 (    docker build -f services/dq-engine/Dockerfile -t <registry>/idqe-dq-engine:1.0.0 .) Tj
 T*
@@ -484,7 +484,7 @@ T*
 T*
 () Tj
 T*
-(    cd /Users/mozesrahangmetan/Documents/DQ) Tj
+(    cd .) Tj
 T*
 (    export AUTH_SECRET='<strong secret>') Tj
 T*
@@ -523,7 +523,7 @@ ET
 endstream
 endobj
 7 0 obj
-<< /Length 2141 >>
+<< /Length 2104 >>
 stream
 BT
 /F1 10 Tf
@@ -633,7 +633,7 @@ T*
 T*
 (USER MANUAL) Tj
 T*
-(/Users/mozesrahangmetan/Documents/DQ/docs/user-manual.md) Tj
+(docs/user-manual.md) Tj
 T*
 (======================================================================) Tj
 T*
@@ -1031,24 +1031,24 @@ xref
 0000000015 00000 n 
 0000000085 00000 n 
 0000000192 00000 n 
-0000002060 00000 n 
-0000003787 00000 n 
-0000005721 00000 n 
-0000008075 00000 n 
-0000010268 00000 n 
-0000011970 00000 n 
-0000013699 00000 n 
-0000014851 00000 n 
-0000014978 00000 n 
-0000015105 00000 n 
-0000015232 00000 n 
-0000015359 00000 n 
-0000015486 00000 n 
-0000015613 00000 n 
-0000015740 00000 n 
-0000015868 00000 n 
+0000001988 00000 n 
+0000003715 00000 n 
+0000005577 00000 n 
+0000007861 00000 n 
+0000010017 00000 n 
+0000011719 00000 n 
+0000013448 00000 n 
+0000014600 00000 n 
+0000014727 00000 n 
+0000014854 00000 n 
+0000014981 00000 n 
+0000015108 00000 n 
+0000015235 00000 n 
+0000015362 00000 n 
+0000015489 00000 n 
+0000015617 00000 n 
 trailer
 << /Size 20 /Root 19 0 R >>
 startxref
-15918
+15667
 %%EOF

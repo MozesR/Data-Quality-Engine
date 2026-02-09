@@ -24,7 +24,7 @@ docker compose version
 ## 2. Project Setup
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd .
 ```
 
 Demo uses:
@@ -108,7 +108,7 @@ If no key is provided, keep provider `mock` or `none`.
 Run API smoke test:
 
 ```bash
-cd /Users/mozesrahangmetan/Documents/DQ
+cd .
 python3 scripts/test_mcp_flow.py
 ```
 

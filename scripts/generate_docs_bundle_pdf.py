@@ -3,12 +3,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+DOCS_DIR = ROOT / "docs"
+
 DOCS = [
-    ("Demo Installation Guide", Path("/Users/mozesrahangmetan/Documents/DQ/docs/install-demo-detailed.md")),
-    ("Production Installation Guide", Path("/Users/mozesrahangmetan/Documents/DQ/docs/install-production-detailed.md")),
-    ("User Manual", Path("/Users/mozesrahangmetan/Documents/DQ/docs/user-manual.md")),
+    ("Demo Installation Guide", DOCS_DIR / "install-demo-detailed.md"),
+    ("Production Installation Guide", DOCS_DIR / "install-production-detailed.md"),
+    ("User Manual", DOCS_DIR / "user-manual.md"),
 ]
-OUT = Path("/Users/mozesrahangmetan/Documents/DQ/docs/idqe-docs-bundle.pdf")
+OUT = DOCS_DIR / "idqe-docs-bundle.pdf"
 
 
 def escape_pdf_text(s: str) -> str:
@@ -164,7 +167,11 @@ def main() -> None:
             raise FileNotFoundError(f"Missing source document: {path}")
         all_lines.append("=" * 70)
         all_lines.append(title.upper())
-        all_lines.append(str(path))
+        # Keep bundle content portable: use repo-relative paths (no local machine paths).
+        try:
+            all_lines.append(str(path.relative_to(ROOT)))
+        except Exception:
+            all_lines.append(str(path.name))
         all_lines.append("=" * 70)
         all_lines.append("")
         text = path.read_text(encoding="utf-8")
@@ -179,4 +186,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
