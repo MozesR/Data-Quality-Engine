@@ -218,6 +218,146 @@
         padding: 10px;
         overflow: auto;
       }
+      .diff-viewer {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #ffffff;
+        overflow: hidden;
+        box-shadow: 0 8px 20px rgba(23, 44, 87, 0.04);
+      }
+      .diff-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        background: #f3f6fb;
+        border-bottom: 1px solid #e1e8f5;
+        flex-wrap: wrap;
+      }
+      .diff-summary .left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .diff-summary .title {
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .diff-kv {
+        display: inline-flex;
+        gap: 6px;
+        align-items: baseline;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #e1e8f5;
+        background: #ffffff;
+        font-size: 13px;
+        color: #314b77;
+      }
+      .diff-kv b { color: #0f1d39; }
+      .diff-count {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #e1e8f5;
+        background: #ffffff;
+        font-size: 13px;
+      }
+      .diff-plus { color: #166534; font-weight: 800; }
+      .diff-minus { color: #991b1b; font-weight: 800; }
+      .diff-table-wrap {
+        overflow: auto;
+        max-height: 520px;
+      }
+      table.diff-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, monospace;
+        font-size: 13px;
+      }
+      table.diff-table td, table.diff-table th {
+        border-bottom: 1px solid #eef2fa;
+        padding: 6px 10px;
+        vertical-align: top;
+        white-space: pre;
+      }
+      table.diff-table th {
+        position: sticky;
+        top: 0;
+        background: #fbfcfe;
+        z-index: 1;
+        color: #58709a;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 11px;
+      }
+      table.diff-table td.ln {
+        width: 60px;
+        text-align: right;
+        color: #8197bd;
+        background: #fbfcfe;
+        position: sticky;
+        left: 0;
+        z-index: 1;
+      }
+      table.diff-table td.ln2 {
+        width: 60px;
+        text-align: right;
+        color: #8197bd;
+        background: #fbfcfe;
+        position: sticky;
+        left: 60px;
+        z-index: 1;
+        border-left: 1px solid #eef2fa;
+      }
+      table.diff-table td.code {
+        min-width: 720px;
+      }
+      tr.diff-hunk td {
+        background: #eef6ff;
+        color: #1e3a8a;
+        font-weight: 800;
+        border-bottom-color: #dbeafe;
+      }
+      tr.diff-add td.code {
+        background: #ecfdf5;
+        color: #14532d;
+      }
+      tr.diff-del td.code {
+        background: #fff1f2;
+        color: #7f1d1d;
+      }
+      tr.diff-meta td.code {
+        background: #f8fafc;
+        color: #475569;
+        font-style: italic;
+      }
+      .diff-marker {
+        display: inline-block;
+        width: 18px;
+        text-align: center;
+        font-weight: 900;
+        margin-right: 6px;
+        opacity: 0.9;
+      }
+      .raw-diff {
+        border-top: 1px solid #e1e8f5;
+        background: #ffffff;
+      }
+      .raw-diff summary {
+        cursor: pointer;
+        padding: 10px 12px;
+        color: #2f4a79;
+        font-weight: 800;
+      }
+      .raw-diff pre {
+        margin: 0 12px 12px 12px;
+        max-height: 360px;
+      }
       .output {
         min-height: 220px;
       }
@@ -831,6 +971,76 @@
           align-items: stretch;
         }
       }
+      .diff-shell {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 12px;
+        margin-top: 10px;
+      }
+      .diff-summary {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .diff-meta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .diff-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #d5e0f0;
+        background: #f8fbff;
+        font-size: 13px;
+        color: #2b436b;
+        font-weight: 800;
+      }
+      .diff-chip.add { border-color: #b7ead2; background: #ecfdf5; color: #065f46; }
+      .diff-chip.del { border-color: #fecaca; background: #fff1f2; color: #7f1d1d; }
+      .diff-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 13px;
+      }
+      .diff-table th, .diff-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #eef2f7;
+        vertical-align: top;
+      }
+      .diff-table th {
+        text-transform: none;
+        font-size: 12px;
+        color: #4b5e79;
+      }
+      .diff-ln {
+        width: 52px;
+        text-align: right;
+        color: #6b7c96;
+        user-select: none;
+      }
+      .diff-code {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .diff-hunk {
+        background: #f3f6ff;
+        color: #233a66;
+        font-weight: 800;
+      }
+      .diff-add-row { background: #ecfdf5; }
+      .diff-del-row { background: #fff1f2; }
+      .diff-ctx-row { background: #ffffff; }
       .popup-overlay {
         position: fixed;
         inset: 0;
@@ -5395,6 +5605,124 @@
         toEl.value = vid;
       }
 
+      function parseUnifiedDiff(diffText) {
+        const text = String(diffText || "");
+        const lines = text.split(/\r?\n/);
+        const hunks = [];
+        let cur = null;
+        let oldLine = null;
+        let newLine = null;
+        let adds = 0;
+        let dels = 0;
+
+        function startHunk(header) {
+          const m = header.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
+          const h = {
+            header,
+            oldStart: m ? Number(m[1]) : null,
+            oldCount: m && m[2] ? Number(m[2]) : null,
+            newStart: m ? Number(m[3]) : null,
+            newCount: m && m[4] ? Number(m[4]) : null,
+            lines: [],
+          };
+          hunks.push(h);
+          cur = h;
+          oldLine = h.oldStart;
+          newLine = h.newStart;
+        }
+
+        for (const raw of lines) {
+          const line = raw ?? "";
+          if (line.startsWith("@@")) {
+            startHunk(line);
+            continue;
+          }
+          if (!cur) continue;
+          if (line.startsWith("--- ") || line.startsWith("+++ ")) {
+            // File header lines; render as meta rows.
+            cur.lines.push({ kind: "meta", text: line, oldLine: "", newLine: "" });
+            continue;
+          }
+          if (line.startsWith("\\ No newline")) {
+            cur.lines.push({ kind: "meta", text: line, oldLine: "", newLine: "" });
+            continue;
+          }
+          const tag = line.charAt(0);
+          const content = line.slice(1);
+          if (tag === "+") {
+            adds += 1;
+            cur.lines.push({ kind: "add", text: content, oldLine: "", newLine: newLine ?? "" });
+            if (typeof newLine === "number") newLine += 1;
+            continue;
+          }
+          if (tag === "-") {
+            dels += 1;
+            cur.lines.push({ kind: "del", text: content, oldLine: oldLine ?? "", newLine: "" });
+            if (typeof oldLine === "number") oldLine += 1;
+            continue;
+          }
+          if (tag === " ") {
+            cur.lines.push({ kind: "ctx", text: content, oldLine: oldLine ?? "", newLine: newLine ?? "" });
+            if (typeof oldLine === "number") oldLine += 1;
+            if (typeof newLine === "number") newLine += 1;
+            continue;
+          }
+          // Fallback: treat as context.
+          cur.lines.push({ kind: "ctx", text: line, oldLine: oldLine ?? "", newLine: newLine ?? "" });
+          if (typeof oldLine === "number") oldLine += 1;
+          if (typeof newLine === "number") newLine += 1;
+        }
+
+        return { hunks, stats: { adds, dels } };
+      }
+
+      function renderUnifiedDiffViewer(diffText, fromId, toId) {
+        const parsed = parseUnifiedDiff(diffText);
+        const adds = parsed.stats.adds;
+        const dels = parsed.stats.dels;
+        const hunks = parsed.hunks;
+        const fromLabel = String(fromId || "").trim();
+        const toLabel = String(toId || "").trim();
+
+        let body = "";
+        body += `<div class="diff-viewer">`;
+        body += `<div class="diff-summary">`;
+        body += `<div class="left">`;
+        body += `<div class="title">Diff</div>`;
+        body += `<div class="diff-kv"><b>From</b> ${escapeHtml(fromLabel || "-")}</div>`;
+        body += `<div class="diff-kv"><b>To</b> ${escapeHtml(toLabel || "-")}</div>`;
+        body += `<div class="diff-count"><span class="diff-plus">+${adds}</span><span class="diff-minus">-${dels}</span></div>`;
+        body += `<div class="diff-kv"><b>Hunks</b> ${hunks.length}</div>`;
+        body += `</div>`;
+        body += `</div>`;
+
+        body += `<div class="diff-table-wrap">`;
+        body += `<table class="diff-table">`;
+        body += `<thead><tr><th style="width:60px;">Old</th><th style="width:60px;">New</th><th>Change</th></tr></thead>`;
+        body += `<tbody>`;
+
+        for (const h of hunks) {
+          body += `<tr class="diff-hunk"><td class="ln"></td><td class="ln2"></td><td class="code">${escapeHtml(h.header)}</td></tr>`;
+          for (const l of h.lines) {
+            const cls = l.kind === "add" ? "diff-add" : l.kind === "del" ? "diff-del" : l.kind === "meta" ? "diff-meta" : "";
+            const marker = l.kind === "add" ? "+" : l.kind === "del" ? "-" : l.kind === "meta" ? "i" : " ";
+            const oldLn = l.oldLine === "" ? "" : String(l.oldLine);
+            const newLn = l.newLine === "" ? "" : String(l.newLine);
+            const txt = l.kind === "meta" ? l.text : l.text;
+            body += `<tr class="${cls}">`;
+            body += `<td class="ln">${escapeHtml(oldLn)}</td>`;
+            body += `<td class="ln2">${escapeHtml(newLn)}</td>`;
+            body += `<td class="code"><span class="diff-marker">${escapeHtml(marker)}</span>${escapeHtml(txt)}</td>`;
+            body += `</tr>`;
+          }
+        }
+
+        body += `</tbody></table></div>`;
+        body += `<details class="raw-diff"><summary>Raw diff</summary><pre class="output" style="white-space:pre-wrap;">${escapeHtml(String(diffText || "").trim())}</pre></details>`;
+        body += `</div>`;
+        return body;
+      }
+
       async function diffRuleVersionsUi() {
         try {
           if (!ensureLoggedIn("Diff Rule Versions", renderRuleVersionStatus)) return;
@@ -5407,7 +5735,7 @@
           const resp = await mcpCall("diff_rule_versions", { from_version_id: fromId, to_version_id: toId });
           const diffText = ((resp.result || {}).diff_text || "").trim();
           renderRuleVersionStatus(diffText
-            ? `<h4>Diff</h4><pre class="output" style="white-space:pre-wrap;">${escapeHtml(diffText)}</pre>`
+            ? renderUnifiedDiffViewer(diffText, fromId, toId)
             : "<p>No differences found.</p>");
         } catch (e) {
           renderError(renderRuleVersionStatus, parseErrorMessage(e));
