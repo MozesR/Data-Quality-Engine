@@ -3036,20 +3036,24 @@
       }
 
       function renderAuditArtifactsTable(serverUrl, artifacts) {
-        const rows = artifacts.map((a) => {
+        if (!artifacts || !artifacts.length) return "<p>No files were generated.</p>";
+        const head = "<tr><th>Artifact</th><th>File</th><th>Size</th><th>Action</th></tr>";
+        const body = artifacts.map((a) => {
           const size = (typeof a.size_bytes === "number" && a.size_bytes >= 0) ? `${a.size_bytes} B` : "-";
           const canDownload = a.download_path && a.filename && a.filename !== "-";
-          const link = canDownload
-            ? `<a href=\"#\" onclick=\"downloadArtifact('${escapeHtml(serverUrl)}','${escapeHtml(a.download_path)}','${escapeHtml(a.filename)}'); return false;\">Download</a>`
+          const action = canDownload
+            ? `<button class="ghost" data-server="${escapeHtml(serverUrl)}" data-path="${escapeHtml(a.download_path)}" data-name="${escapeHtml(a.filename)}" onclick="downloadArtifact(this.dataset.server,this.dataset.path,this.dataset.name)">Download</button>`
             : "-";
-          return {
-            "Artifact": a.key,
-            "File": a.filename,
-            "Size": size,
-            "Action": link,
-          };
-        });
-        return renderTable(rows);
+          return `
+            <tr>
+              <td>${escapeHtml(a.key || "-")}</td>
+              <td>${escapeHtml(a.filename || "-")}</td>
+              <td>${escapeHtml(size)}</td>
+              <td>${action}</td>
+            </tr>
+          `;
+        }).join("");
+        return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
       }
 
       async function downloadArtifact(serverUrl, downloadPath, filename) {
