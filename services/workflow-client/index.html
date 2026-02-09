@@ -249,6 +249,67 @@
         max-height: 520px;
         overflow: auto;
       }
+      .run-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .run-item {
+        border: 1px solid #e1e8f5;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 10px 10px;
+        cursor: pointer;
+        transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+      }
+      .run-item:hover {
+        background: #f3f7ff;
+        border-color: rgba(45, 95, 216, 0.35);
+        transform: translateY(-1px);
+      }
+      .run-item-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .run-item-title {
+        font-weight: 900;
+        color: #23314b;
+        font-size: 14px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .run-item-sub {
+        margin-top: 6px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 10px;
+        color: #4b5e79;
+        font-size: 12px;
+      }
+      .run-item-sub div {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-weight: 900;
+        font-size: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        white-space: nowrap;
+      }
+      .badge.ok { background: #dcfce7; color: #166534; border-color: rgba(22, 101, 52, 0.2); }
+      .badge.warn { background: #ffedd5; color: #9a3412; border-color: rgba(154, 52, 18, 0.2); }
+      .badge.err { background: #fee2e2; color: #991b1b; border-color: rgba(153, 27, 27, 0.2); }
+      .badge.neutral { background: #eef2ff; color: #1f2a44; border-color: rgba(31, 42, 68, 0.15); }
       .primary-actions {
         display: flex;
         flex-wrap: wrap;
@@ -1545,6 +1606,29 @@
         const s = String(value || "");
         if (s.length <= 12) return s;
         return `${s.slice(0, 8)}...`;
+      }
+
+      function shortRunId(value) {
+        const s = String(value || "");
+        if (s.length <= 12) return s;
+        return `${s.slice(0, 8)}...${s.slice(-4)}`;
+      }
+
+      function shortServerLabel(url) {
+        try {
+          const u = new URL(String(url || ""));
+          return `${u.hostname}${u.port ? ":" + u.port : ""}`;
+        } catch (_) {
+          return String(url || "");
+        }
+      }
+
+      function badgeForStatus(status) {
+        const s = String(status || "").toLowerCase();
+        if (s === "completed" || s === "ok" || s === "success") return "ok";
+        if (s === "failed" || s === "error") return "err";
+        if (s === "running" || s === "queued") return "warn";
+        return "neutral";
       }
 
       function formatIso(value) {
@@ -3491,21 +3575,6 @@
         const end = Math.min(total, start + WORKFLOW_HISTORY_PAGE_SIZE);
         const slice = workflowHistoryRows.slice(start, end);
 
-        const head = "<tr><th>MCP Server</th><th>Run ID</th><th>Dataset ID</th><th>Type</th><th>Provider</th><th>Process</th><th>Status</th><th>Created At</th><th>Action</th></tr>";
-        const body = slice.map(r => `
-          <tr class="clickable-row" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">
-            <td>${escapeHtml(r.__server_url)}</td>
-            <td>${escapeHtml(r.run_id)}</td>
-            <td>${escapeHtml(r.dataset_id)}</td>
-            <td>${escapeHtml(r.dataset_type)}</td>
-            <td>${escapeHtml(r.provider)}</td>
-            <td>${escapeHtml(r.process_type)}</td>
-            <td>${escapeHtml(r.status)}</td>
-            <td>${escapeHtml(r.created_at)}</td>
-            <td><button class="ghost" onclick="event.stopPropagation(); showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">View Details</button></td>
-          </tr>
-        `).join("");
-
         const prevDisabled = workflowHistoryPage <= 1 ? "disabled" : "";
         const nextDisabled = workflowHistoryPage >= totalPages ? "disabled" : "";
 
@@ -3521,7 +3590,30 @@
         renderWorkflowHistory(`
           ${workflowHistoryHintsHtml || ""}
           <div class="small muted" style="margin-top:6px;">Page <strong>${workflowHistoryPage}</strong> / ${totalPages}</div>
-          <table><thead>${head}</thead><tbody>${body}</tbody></table>
+          <div class="run-list">
+            ${slice.map(r => {
+              const serverShort = shortServerLabel(r.__server_url);
+              const statusTone = badgeForStatus(r.status);
+              const procTone = (String(r.process_type || "").toLowerCase() === "correction") ? "warn" : "neutral";
+              return `
+                <div class="run-item" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">
+                  <div class="run-item-head">
+                    <div class="run-item-title">${escapeHtml(r.dataset_id || "-")}</div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                      <span class="badge ${procTone}">${escapeHtml(r.process_type || "-")}</span>
+                      <span class="badge ${statusTone}">${escapeHtml(r.status || "-")}</span>
+                    </div>
+                  </div>
+                  <div class="run-item-sub">
+                    <div><strong>Server:</strong> ${escapeHtml(serverShort)}</div>
+                    <div><strong>Run:</strong> ${escapeHtml(shortRunId(r.run_id))}</div>
+                    <div><strong>Type:</strong> ${escapeHtml(r.dataset_type || "-")}</div>
+                    <div><strong>When:</strong> ${escapeHtml(formatIso(r.created_at || r.created_at))}</div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
         `);
       }
 
