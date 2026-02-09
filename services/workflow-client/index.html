@@ -1078,6 +1078,10 @@
       let adminSharedMcpServersState = [];
       let analyticsSelectedServers = new Set();
       let popupActions = [];
+      let workflowHistoryRows = [];
+      let workflowHistoryHintsHtml = "";
+      let workflowHistoryPage = 1;
+      const WORKFLOW_HISTORY_PAGE_SIZE = 10;
 
       function switchTab(tab) {
         if (tab === "llm" && !isLlmTabEnabledForActiveServer()) {
@@ -3072,6 +3076,9 @@
         try {
           const targets = getSelectedRunServers();
           if (!targets.length) {
+            workflowHistoryRows = [];
+            workflowHistoryHintsHtml = "";
+            workflowHistoryPage = 1;
             renderRun(`
               <h4>Workflow Run History</h4>
               <p>No MCP servers selected.</p>
@@ -3112,6 +3119,9 @@
               unauthorized.length ? `<div class="warn"><strong>Login required:</strong> ${escapeHtml(unauthorized.join(", "))}</div>` : "",
               failed.length ? `<div class="warn"><strong>Some servers failed:</strong><br/>${failed.map(x => `${escapeHtml(x.serverUrl)}: ${escapeHtml(x.msg)}`).join("<br/>")}</div>` : "",
             ].join("");
+            workflowHistoryRows = [];
+            workflowHistoryHintsHtml = hints;
+            workflowHistoryPage = 1;
             renderRun(`<h4>Workflow Run History</h4>${hints}<p>No runs found.</p>`);
             return;
           }
@@ -3120,24 +3130,57 @@
             unauthorized.length ? `<div class="warn"><strong>Login required:</strong> ${escapeHtml(unauthorized.join(", "))}</div>` : "",
             failed.length ? `<div class="warn"><strong>Some servers failed:</strong><br/>${failed.map(x => `${escapeHtml(x.serverUrl)}: ${escapeHtml(x.msg)}`).join("<br/>")}</div>` : "",
           ].join("");
-          const head = "<tr><th>MCP Server</th><th>Run ID</th><th>Dataset ID</th><th>Type</th><th>Provider</th><th>Process</th><th>Status</th><th>Created At</th><th>Action</th></tr>";
-          const body = rows.map(r => `
-            <tr class="clickable-row" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">
-              <td>${escapeHtml(r.__server_url)}</td>
-              <td>${escapeHtml(r.run_id)}</td>
-              <td>${escapeHtml(r.dataset_id)}</td>
-              <td>${escapeHtml(r.dataset_type)}</td>
-              <td>${escapeHtml(r.provider)}</td>
-              <td>${escapeHtml(r.process_type)}</td>
-              <td>${escapeHtml(r.status)}</td>
-              <td>${escapeHtml(r.created_at)}</td>
-              <td><button class="ghost" onclick="event.stopPropagation(); showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">View Details</button></td>
-            </tr>
-          `).join("");
-          renderRun(`<h4>Workflow Run History</h4>${hints}<table><thead>${head}</thead><tbody>${body}</tbody></table>`);
+          workflowHistoryRows = rows;
+          workflowHistoryHintsHtml = hints;
+          workflowHistoryPage = 1;
+          renderWorkflowHistoryPage(1);
         } catch (e) {
           renderError(renderRun, parseErrorMessage(e));
         }
+      }
+
+      function renderWorkflowHistoryPage(page) {
+        const total = workflowHistoryRows.length || 0;
+        const totalPages = Math.max(1, Math.ceil(total / WORKFLOW_HISTORY_PAGE_SIZE));
+        workflowHistoryPage = Math.max(1, Math.min(totalPages, Number(page || 1)));
+
+        if (!total) {
+          renderRun(`<h4>Workflow Run History</h4>${workflowHistoryHintsHtml || ""}<p>No runs found.</p>`);
+          return;
+        }
+
+        const start = (workflowHistoryPage - 1) * WORKFLOW_HISTORY_PAGE_SIZE;
+        const end = Math.min(total, start + WORKFLOW_HISTORY_PAGE_SIZE);
+        const slice = workflowHistoryRows.slice(start, end);
+
+        const head = "<tr><th>MCP Server</th><th>Run ID</th><th>Dataset ID</th><th>Type</th><th>Provider</th><th>Process</th><th>Status</th><th>Created At</th><th>Action</th></tr>";
+        const body = slice.map(r => `
+          <tr class="clickable-row" onclick="showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">
+            <td>${escapeHtml(r.__server_url)}</td>
+            <td>${escapeHtml(r.run_id)}</td>
+            <td>${escapeHtml(r.dataset_id)}</td>
+            <td>${escapeHtml(r.dataset_type)}</td>
+            <td>${escapeHtml(r.provider)}</td>
+            <td>${escapeHtml(r.process_type)}</td>
+            <td>${escapeHtml(r.status)}</td>
+            <td>${escapeHtml(r.created_at)}</td>
+            <td><button class="ghost" onclick="event.stopPropagation(); showWorkflowRunDetail('${escapeHtml(r.__server_url)}','${escapeHtml(r.run_id)}')">View Details</button></td>
+          </tr>
+        `).join("");
+
+        const prevDisabled = workflowHistoryPage <= 1 ? "disabled" : "";
+        const nextDisabled = workflowHistoryPage >= totalPages ? "disabled" : "";
+
+        renderRun(`
+          <h4>Workflow Run History</h4>
+          ${workflowHistoryHintsHtml || ""}
+          <div class="inline-controls" style="margin:10px 0 14px;">
+            <button class="ghost" ${prevDisabled} onclick="renderWorkflowHistoryPage(${workflowHistoryPage - 1})">Prev</button>
+            <div class="small" style="padding:0 10px;">Page <strong>${workflowHistoryPage}</strong> / ${totalPages} (showing ${start + 1}-${end} of ${total})</div>
+            <button class="ghost" ${nextDisabled} onclick="renderWorkflowHistoryPage(${workflowHistoryPage + 1})">Next</button>
+          </div>
+          <table><thead>${head}</thead><tbody>${body}</tbody></table>
+        `);
       }
 
       async function showWorkflowRunDetail(serverUrl, runId) {
