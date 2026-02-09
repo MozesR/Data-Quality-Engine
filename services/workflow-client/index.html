@@ -768,6 +768,38 @@
         display: flex;
         gap: 6px;
       }
+      .stepper {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .step {
+        border: 1px solid #d5e0f0;
+        border-radius: 12px;
+        background: #f8fbff;
+        padding: 10px 12px;
+      }
+      .step .k {
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #49607c;
+        margin: 0 0 8px;
+      }
+      .step .v {
+        font-weight: 900;
+        font-size: 16px;
+        margin: 0 0 4px;
+      }
+      .step .d {
+        font-size: 13px;
+        color: #5e6f89;
+      }
+      .step.ok { border-color: #b7ead2; background: #ecfdf5; }
+      .step.warn { border-color: #ffe0b3; background: #fff7ed; }
+      .step.err { border-color: #fecaca; background: #fff1f2; color: #7f1d1d; }
       .table-scroll {
         width: 100%;
         overflow-x: auto;
@@ -1009,27 +1041,51 @@
             </div>
           </div>
         </div>
-        <div class="card">
-          <h3>Workflow Analytics</h3>
-          <div class="card" style="padding:12px; margin-bottom:10px;">
-            <label>Date Range</label>
-            <select id="analyticsRange" style="max-width:220px;">
-              <option value="0">All time</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
-            </select>
-            <label>Analytics MCP Servers</label>
-            <div id="analyticsServerSelector" class="small" style="border:1px solid #e5e7eb; border-radius:8px; padding:8px; margin-bottom:10px;">
-              No connected servers.
-            </div>
-            <button class="ghost" onclick="selectAllAnalyticsServers()">Select All</button>
-            <button class="ghost" onclick="selectRunTargetsForAnalytics()">Use Run Targets</button>
-            <button class="ghost" onclick="clearAnalyticsServers()">Clear</button>
-            <button class="secondary" onclick="loadWorkflowAnalytics()">Refresh Analytics</button>
-          </div>
-          <div id="workflowAnalyticsOutput" class="output">Click <strong>Workflow Analytics</strong> to load trends and correction-rule usage.</div>
-        </div>
+	        <div class="card">
+	          <h3>Workflow Analytics</h3>
+	          <div class="card" style="padding:12px; margin-bottom:10px;">
+	            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">
+	              <div>
+	                <label>Date Range</label>
+	                <select id="analyticsRange" style="max-width:220px;">
+	              <option value="0">All time</option>
+	              <option value="7">Last 7 days</option>
+	              <option value="30">Last 30 days</option>
+	              <option value="90">Last 90 days</option>
+	                </select>
+	              </div>
+	              <div>
+	                <label>Provider Filter</label>
+	                <select id="analyticsProvider" style="max-width:220px;">
+	                  <option value="">All providers</option>
+	                  <option value="BANK_A">BANK_A</option>
+	                  <option value="BANK_B">BANK_B</option>
+	                </select>
+	              </div>
+	              <div>
+	                <label>Dataset Type Filter</label>
+	                <select id="analyticsDatasetType" style="max-width:220px;">
+	                  <option value="">All dataset types</option>
+	                  <option value="customer_profile">customer_profile</option>
+	                  <option value="credit_facility">credit_facility</option>
+	                </select>
+	              </div>
+	              <div>
+	                <label>Dataset ID (optional)</label>
+	                <input id="analyticsDatasetId" placeholder="e.g. demo-dataset" />
+	              </div>
+	            </div>
+	            <label style="margin-top:10px;">Analytics MCP Servers</label>
+	            <div id="analyticsServerSelector" class="small" style="border:1px solid #e5e7eb; border-radius:8px; padding:8px; margin-bottom:10px;">
+	              No connected servers.
+	            </div>
+	            <button class="ghost" onclick="selectAllAnalyticsServers()">Select All</button>
+	            <button class="ghost" onclick="selectRunTargetsForAnalytics()">Use Run Targets</button>
+	            <button class="ghost" onclick="clearAnalyticsServers()">Clear</button>
+	            <button class="secondary" onclick="loadWorkflowAnalytics()">Refresh Analytics</button>
+	          </div>
+	          <div id="workflowAnalyticsOutput" class="output">Click <strong>Workflow Analytics</strong> to load trends and correction-rule usage.</div>
+	        </div>
       </section>
 
       <section id="tab-rules" class="tab">
@@ -1792,6 +1848,20 @@
       function renderWorkflowAnalytics(html) { document.getElementById("workflowAnalyticsOutput").innerHTML = html; }
       let sessionOutputTab = "tools";
 
+      function openRunDetailFromAnalytics(serverUrl, runId) {
+        const srv = normalizeBaseUrl(serverUrl);
+        const rid = String(runId || "").trim();
+        if (!srv || !rid) return;
+        hideChartTooltip();
+        switchTab("run");
+        // Ensure the detail panel is visible and then load it.
+        showWorkflowRunDetail(srv, rid).catch(() => {});
+        try {
+          const el = document.getElementById("workflowDetailPane");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (_) {}
+      }
+
       function switchSessionOutputTab(tab) {
         const allowed = ["tools", "sources", "model", "dataset", "relations"];
         const next = allowed.includes(tab) ? tab : "tools";
@@ -2080,7 +2150,15 @@
           const tip = tipEncode(
             `<strong>${p.label}</strong><br/>Quality Index: ${String(p.value)}%<br/>Server: ${p.server || "-"}<br/>Dataset: ${p.dataset_type || "-"}`
           );
-          return `<g><circle cx="${cx}" cy="${cy}" r="3.8" fill="#2d5fd8" data-tip="${tip}" onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"/></g>`;
+          const runId = tipEncode(String(p.run_id || ""));
+          const srv = tipEncode(String(p.server || ""));
+          return `<g>
+            <circle cx="${cx}" cy="${cy}" r="3.8" fill="#2d5fd8" data-tip="${tip}"
+              style="cursor:pointer"
+              onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"
+              onclick="openRunDetailFromAnalytics('${srv}','${runId}')"
+            />
+          </g>`;
         }).join("");
 
         const grid = [0, 25, 50, 75, 100].map(v => {
@@ -2096,7 +2174,7 @@
               ${dots}
               <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#b8c5da" stroke-width="1.2"/>
             </svg>
-            <div class="small">Points: ${points.length} assessments across selected MCP servers.</div>
+            <div class="small">Tip: click a point to open the run detail. Points: ${points.length} assessments across selected MCP servers.</div>
           </div>
         `;
       }
@@ -2181,7 +2259,13 @@
               `Declined-suggested rules: ${(p.suggestedDeclinedRules || []).slice(0, 5).join(", ") || "-"}`,
             ];
             const tip = tipEncode(detailLines.join("<br/>"));
-            return `<circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}" data-tip="${tip}" onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"/>`;
+            const runId = tipEncode(String(p.run_id || ""));
+            const srv = tipEncode(String(p.server || ""));
+            return `<circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}" data-tip="${tip}"
+              style="cursor:pointer"
+              onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"
+              onclick="openRunDetailFromAnalytics('${srv}','${runId}')"
+            />`;
           }).join("")
         ).join("");
 
@@ -2244,7 +2328,13 @@
                 `Sample violated rules: ${(p.ruleIds || []).slice(0, 8).join(", ") || "-"}`,
               ].join("<br/>")
             );
-            return `<circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}" data-tip="${tip}" onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"/>`;
+            const runId = tipEncode(String(p.run_id || ""));
+            const srv = tipEncode(String(p.server || ""));
+            return `<circle cx="${cx}" cy="${cy}" r="4" fill="${s.color}" data-tip="${tip}"
+              style="cursor:pointer"
+              onmouseenter="showChartTooltip(event, this.dataset.tip)" onmousemove="moveChartTooltip(event)" onmouseleave="hideChartTooltip()"
+              onclick="openRunDetailFromAnalytics('${srv}','${runId}')"
+            />`;
           }).join("")
         ).join("");
 
@@ -2297,6 +2387,8 @@
         const scoreState = sla.avgQuality >= sla.targetQuality ? "sla-pass" : "sla-fail";
         const corrState = sla.correctionCoverage >= sla.targetCorrectionCoverage ? "sla-pass" : "sla-fail";
         const reviewState = sla.suggestionReviewRate >= sla.targetSuggestionReviewRate ? "sla-pass" : "sla-fail";
+        const mttrHours = Number.isFinite(Number(sla.mttrAvgMinutes)) ? (Number(sla.mttrAvgMinutes) / 60.0) : null;
+        const mttrMedHours = Number.isFinite(Number(sla.mttrMedianMinutes)) ? (Number(sla.mttrMedianMinutes) / 60.0) : null;
         return `
           <div class="chart-shell">
             <p class="chart-title">SLA Dashboard</p>
@@ -2315,6 +2407,11 @@
                 <p class="sla-title">Suggestion Review Rate</p>
                 <div class="sla-value">${sla.suggestionReviewRate.toFixed(2)}%</div>
                 <div class="${reviewState}">Target ${sla.targetSuggestionReviewRate}%</div>
+              </div>
+              <div class="sla-card">
+                <p class="sla-title">MTTR (Avg / Median)</p>
+                <div class="sla-value">${mttrHours === null ? "-" : mttrHours.toFixed(2)} h</div>
+                <div class="small">${mttrMedHours === null ? "" : `Median ${mttrMedHours.toFixed(2)} h`}</div>
               </div>
               <div class="sla-card">
                 <p class="sla-title">Runs In Scope</p>
@@ -4456,6 +4553,51 @@
           }));
           const hasAssessment = result.quality_index !== undefined || violations.length > 0;
           const hasCorrection = result.corrections_applied !== undefined || corrections.length > 0;
+          const suggCount = Array.isArray(result.suggestions) ? result.suggestions.length : 0;
+          const violCount = violations.length;
+          const corrCount = Number(result.corrections_applied ?? corrections.length ?? 0);
+
+          // Related runs (best-effort) using currently loaded history slice.
+          const key = `${d.provider || "-"}|${d.dataset_type || "-"}|${d.dataset_id || "-"}`;
+          const myTs = Date.parse(String(d.created_at || ""));
+          const related = (workflowHistoryRows || []).filter(r => `${r.provider || "-"}|${r.dataset_type || "-"}|${r.dataset_id || "-"}` === key);
+          const prevAssessment = related
+            .filter(r => r.process_type === "assessment")
+            .filter(r => Date.parse(String(r.created_at || "")) < myTs)
+            .sort((a,b) => String(b.created_at||"").localeCompare(String(a.created_at||"")))
+            [0] || null;
+          const nextCorrection = related
+            .filter(r => r.process_type === "correction")
+            .filter(r => Date.parse(String(r.created_at || "")) > myTs)
+            .sort((a,b) => String(a.created_at||"").localeCompare(String(b.created_at||"")))
+            [0] || null;
+
+          const step = (tone, title, value, detail) => `
+            <div class="step ${tone}">
+              <div class="k">${escapeHtml(title)}</div>
+              <div class="v">${escapeHtml(value)}</div>
+              <div class="d">${escapeHtml(detail || "")}</div>
+            </div>
+          `;
+          const stepperHtml = `
+            <h4>Step Progress</h4>
+            <div class="stepper">
+              ${step("ok", "Load Dataset", "done", `${escapeHtml(d.dataset_id || "-")}`)}
+              ${step(hasAssessment || hasCorrection ? "ok" : "warn", "Validate Rules", (hasAssessment || hasCorrection) ? "done" : "unknown", "Rules were applied for this run")}
+              ${step(hasAssessment ? "ok" : "warn", "Score Quality", hasAssessment ? "done" : "n/a", hasAssessment ? `Quality ${escapeHtml(result.quality_index ?? "-")}%` : "Not an assessment run")}
+              ${step(hasAssessment ? (suggCount > 0 ? "ok" : "warn") : "warn", "Generate Suggestions", hasAssessment ? (suggCount > 0 ? "done" : "none") : "n/a", hasAssessment ? `${suggCount} suggestion(s)` : "Not an assessment run")}
+              ${step(hasCorrection ? (corrCount > 0 ? "ok" : "warn") : "warn", "Apply Corrections", hasCorrection ? (corrCount > 0 ? "done" : "none") : "n/a", hasCorrection ? `${corrCount} correction(s)` : "Not a correction run")}
+            </div>
+          `;
+
+          const relatedHtml = `
+            <h4>Related Runs</h4>
+            <div class="small muted">Based on currently loaded Workflow History for selected servers.</div>
+            <div class="primary-actions" style="margin-top:8px;">
+              ${prevAssessment ? `<button class="ghost" onclick="showWorkflowRunDetail('${escapeHtml(prevAssessment.__server_url)}','${escapeHtml(prevAssessment.run_id)}')">Open Previous Assessment</button>` : `<button class="ghost" disabled>No previous assessment</button>`}
+              ${nextCorrection ? `<button class="ghost" onclick="showWorkflowRunDetail('${escapeHtml(nextCorrection.__server_url)}','${escapeHtml(nextCorrection.run_id)}')">Open Next Correction</button>` : `<button class="ghost" disabled>No next correction</button>`}
+            </div>
+          `;
 
           renderWorkflowDetail(`
             <div class="metric"><strong>MCP Server:</strong> ${escapeHtml(serverUrl)}</div>
@@ -4465,6 +4607,8 @@
             <div class="metric"><strong>Process:</strong> ${escapeHtml(d.process_type)}</div>
             <div class="metric"><strong>Status:</strong> ${escapeHtml(d.status)}</div>
             <div class="metric"><strong>Created At:</strong> ${escapeHtml(d.created_at)}</div>
+            ${stepperHtml}
+            ${relatedHtml}
             <h4>Result Summary</h4>
             <div class="metric"><strong>Total Records:</strong> ${escapeHtml(result.total_records ?? "-")}</div>
             ${hasAssessment ? `<div class="metric"><strong>Quality Index:</strong> ${escapeHtml(result.quality_index ?? "-")}%</div>` : ""}
@@ -4609,6 +4753,9 @@
           }
           if (!ensureLoggedInForServers(targets, "Workflow Analytics", renderWorkflowAnalytics)) return;
           const rangeDays = Number(document.getElementById("analyticsRange")?.value || 0);
+          const providerFilter = String(document.getElementById("analyticsProvider")?.value || "").trim();
+          const datasetTypeFilter = String(document.getElementById("analyticsDatasetType")?.value || "").trim();
+          const datasetIdFilter = String(document.getElementById("analyticsDatasetId")?.value || "").trim();
 
           const runsByServer = await Promise.all(
             targets.map(async (serverUrl) => {
@@ -4617,7 +4764,12 @@
               return rows;
             })
           );
-          const allRuns = runsByServer.flat().filter(r => includeRunByRange(r.created_at, rangeDays));
+          const allRuns = runsByServer
+            .flat()
+            .filter(r => includeRunByRange(r.created_at, rangeDays))
+            .filter(r => providerFilter ? String(r.provider || "") === providerFilter : true)
+            .filter(r => datasetTypeFilter ? String(r.dataset_type || "") === datasetTypeFilter : true)
+            .filter(r => datasetIdFilter ? String(r.dataset_id || "") === datasetIdFilter : true);
           const assessmentRuns = allRuns.filter(r => r.process_type === "assessment" && r.status === "completed");
           const correctionRuns = allRuns.filter(r => r.process_type === "correction" && r.status === "completed");
 
@@ -4639,6 +4791,7 @@
               label: `${run.dataset_type} @ ${formatIso(run.created_at)}`,
               value: Number((detail.result || {}).quality_index),
               server: run.__server_url,
+              run_id: run.run_id,
               dataset_type: run.dataset_type,
             }))
             .filter(p => Number.isFinite(p.value))
@@ -4661,6 +4814,7 @@
                 ts: String(run.created_at || ""),
                 label: `${run.dataset_type} @ ${formatIso(run.created_at)}`,
                 server: run.__server_url,
+                run_id: run.run_id,
                 dataset_type: run.dataset_type,
                 high: counts.high,
                 medium: counts.medium,
@@ -4717,6 +4871,7 @@
               ts: String(run.created_at || ""),
               label: `${run.dataset_type} @ ${formatIso(run.created_at)}`,
               server: run.__server_url,
+              run_id: run.run_id,
               dataset_type: run.dataset_type,
               existing: 0,
               suggestedApproved: 0,
@@ -4775,6 +4930,54 @@
             correctionRuns: correctionRuns.length,
           };
 
+          // MTTR (approximation): first assessment with violations -> first later correction with applied fixes, per dataset.
+          const datasetKey = (r) => `${r.provider || "-"}|${r.dataset_type || "-"}|${r.dataset_id || "-"}`;
+          const detections = {};
+          const corrections = {};
+          assessmentDetails.filter(Boolean).forEach(({ run, detail }) => {
+            const viols = ((detail.result || {}).violations || []).length;
+            if (viols <= 0) return;
+            const k = datasetKey(run);
+            const ts = Date.parse(String(run.created_at || ""));
+            if (!Number.isFinite(ts)) return;
+            if (!detections[k] || ts < detections[k]) detections[k] = ts;
+          });
+          correctionDetails.filter(Boolean).forEach(({ run, detail }) => {
+            const applied = Number((detail.result || {}).corrections_applied || 0);
+            if (applied <= 0) return;
+            const k = datasetKey(run);
+            const ts = Date.parse(String(run.created_at || ""));
+            if (!Number.isFinite(ts)) return;
+            // only record first correction time
+            if (!corrections[k] || ts < corrections[k]) corrections[k] = ts;
+          });
+          const mttrItems = Object.keys(detections).map((k) => {
+            const dts = detections[k];
+            const cts = corrections[k];
+            if (!cts || cts <= dts) return null;
+            const minutes = (cts - dts) / 60000;
+            const [provider, dataset_type, dataset_id] = k.split("|");
+            return { provider, dataset_type, dataset_id, detected_at: new Date(dts).toISOString(), corrected_at: new Date(cts).toISOString(), mttr_minutes: minutes };
+          }).filter(Boolean);
+          const mttrValues = mttrItems.map(x => x.mttr_minutes).sort((a,b) => a-b);
+          const mttrAvg = mttrValues.length ? (mttrValues.reduce((a,v)=>a+v,0)/mttrValues.length) : NaN;
+          const mttrMedian = mttrValues.length ? (mttrValues[Math.floor(mttrValues.length/2)]) : NaN;
+          slaSummary.mttrAvgMinutes = mttrAvg;
+          slaSummary.mttrMedianMinutes = mttrMedian;
+
+          const mttrTableRows = mttrItems
+            .slice()
+            .sort((a,b) => b.mttr_minutes - a.mttr_minutes)
+            .slice(0, 12)
+            .map((x) => ({
+              Provider: x.provider,
+              "Dataset Type": x.dataset_type,
+              "Dataset ID": x.dataset_id,
+              "First Detected": formatIso(x.detected_at),
+              "First Corrected": formatIso(x.corrected_at),
+              "MTTR (hours)": (x.mttr_minutes / 60.0).toFixed(2),
+            }));
+
           const progressSummary = {
             totalRuns: allRuns.length,
             datasetLoaded: allRuns.length,
@@ -4791,6 +4994,11 @@
             ${renderRuleApplicationLineChart(ruleTrendPoints)}
             ${renderCorrectionUsageChart(usage)}
             ${renderWorkflowProgressTimeline(progressSummary)}
+            <div class="chart-shell">
+              <p class="chart-title">MTTR (Approx.)</p>
+              <div class="small">Computed as first assessment with violations to first subsequent correction with applied fixes, per dataset.</div>
+              ${mttrTableRows.length ? renderTable(mttrTableRows) : "<p>No MTTR data yet (need violations + later corrections).</p>"}
+            </div>
             ${renderAnalyticsImprovementIdeas()}
             <div class="small" style="margin-top:10px;">
               Based on ${assessmentRuns.length} assessment runs and ${correctionRuns.length} correction runs across ${targets.length} selected MCP server(s), date range: ${rangeDays > 0 ? `last ${rangeDays} days` : "all time"}.
