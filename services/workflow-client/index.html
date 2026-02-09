@@ -1763,10 +1763,22 @@
         if (!rows || rows.length === 0) return "<p>No rows found.</p>";
         const cols = Object.keys(rows[0]);
         const head = `<tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+        const renderCell = (value) => {
+          // Allow a controlled escape hatch for UI-rendered cells (buttons/links).
+          // Usage: { __html: "<button>...</button>" }
+          if (value && typeof value === "object" && value.__html !== undefined) {
+            return `<td>${String(value.__html)}</td>`;
+          }
+          return `<td>${escapeHtml(value)}</td>`;
+        };
         const body = rows.map(row =>
-          `<tr>${cols.map(c => `<td>${escapeHtml(row[c])}</td>`).join("")}</tr>`
+          `<tr>${cols.map(c => renderCell(row[c])).join("")}</tr>`
         ).join("");
         return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      }
+
+      function htmlCell(html) {
+        return { __html: String(html || "") };
       }
 
       function renderRun(html) {
@@ -5142,7 +5154,7 @@
             "Version ID": x.version_id,
             "Note": x.note || "-",
             "Created At": formatIso(x.created_at),
-            "Action": `<button class="ghost" onclick="prefillRuleVersion('${escapeHtml(x.version_id)}')">Use</button>`,
+            "Action": htmlCell(`<button class="ghost" onclick="prefillRuleVersion('${escapeHtml(x.version_id)}')">Use</button>`),
           }));
           renderRuleVersions(rows.length ? renderTable(rows) : "<p>No rule versions found.</p>");
         } catch (e) {
@@ -5227,9 +5239,11 @@
             "SLA": x.sla_min_quality ?? "-",
             "Next Run": formatIso(x.next_run_at),
             "Status": `${x.is_active ? "active" : "paused"} (${x.last_status || "-"})`,
-            "Action": x.is_active
-              ? `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', false)">Pause</button>`
-              : `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', true)">Resume</button>`,
+            "Action": htmlCell(
+              x.is_active
+                ? `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', false)">Pause</button>`
+                : `<button class="ghost" onclick="toggleWorkflowJobUi('${escapeHtml(x.job_id)}', true)">Resume</button>`
+            ),
           }));
           renderWorkflowJobs(rows.length ? renderTable(rows) : "<p>No workflow jobs configured.</p>");
         } catch (e) {
