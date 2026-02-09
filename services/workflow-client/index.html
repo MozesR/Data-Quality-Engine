@@ -1215,11 +1215,22 @@
           hidePopup();
           return;
         }
+        // Backwards compatible alias.
         if (kind === "go_login") {
+          a.action = "go_select_server";
+        }
+        if (kind === "go_select_server") {
           const base = normalizeBaseUrl(a.base_url || activeMcpBase);
           hidePopup();
-          if (base && base !== activeMcpBase) setActiveServer(base);
-          showAuthPage(`<div class="err">${escapeHtml(String(a.message || "Please login to continue."))}</div>`);
+          // Keep the user logged in; just route to MCP Session and prefill server input.
+          switchTab("session");
+          const input = document.getElementById("serverUrlInput");
+          if (input && base) {
+            input.value = base;
+            try { input.focus(); } catch (_) {}
+          }
+          const msg = String(a.message || "Select a MCP server to continue.");
+          showPopup("Select MCP Server", msg, "warn", [{ label: "Close", className: "secondary", action: "close" }]);
           return;
         }
         hidePopup();
@@ -1736,7 +1747,7 @@
         // If the user is already logged in elsewhere, keep them in-app and show a popup.
         if (isAppVisible() && hasAnyLoggedInSession()) {
           showPopup("Login Required", message, "warn", [
-            { label: "Go To Login", className: "warning", action: "go_login", base_url: activeMcpBase, message },
+            { label: "Go to select MCP server", className: "warning", action: "go_select_server", base_url: activeMcpBase, message },
             { label: "Close", className: "secondary", action: "close" },
           ]);
         } else {
@@ -1760,7 +1771,7 @@
         if (isAppVisible() && hasAnyLoggedInSession()) {
           const firstMissing = missing[0] || activeMcpBase;
           showPopup("Login Required", message, "warn", [
-            { label: "Login On Missing Server", className: "warning", action: "go_login", base_url: firstMissing, message },
+            { label: "Go to select MCP server", className: "warning", action: "go_select_server", base_url: firstMissing, message },
             { label: "Close", className: "secondary", action: "close" },
           ]);
         } else {
