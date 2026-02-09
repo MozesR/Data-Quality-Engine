@@ -1255,6 +1255,13 @@ def _extract_suggestion_severity(suggestion: Any) -> str:
 def build_admin_access_review_report(stale_days: int = 90, audit_limit: int = 200) -> dict[str, Any]:
     stale_days = max(1, int(stale_days))
     cutoff = utcnow() - timedelta(days=stale_days)
+
+    def _aware_utc(dt: datetime) -> datetime:
+        # DB drivers may return naive timestamps. Treat naive values as UTC for comparisons.
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
     with engine.begin() as conn:
         users_rows = conn.execute(
             text("SELECT id, email, name, role, team, is_active, created_at, last_login_at FROM users ORDER BY id ASC")
@@ -1277,6 +1284,8 @@ def build_admin_access_review_report(stale_days: int = 90, audit_limit: int = 20
         team = str(row.get("team") or "default")
         created_at = row.get("created_at")
         last_login_at = row.get("last_login_at")
+        created_at_cmp = _aware_utc(created_at) if isinstance(created_at, datetime) else None
+        last_login_cmp = _aware_utc(last_login_at) if isinstance(last_login_at, datetime) else None
         entry = {
             "user_id": row.get("id"),
             "email": row.get("email"),
@@ -1284,18 +1293,18 @@ def build_admin_access_review_report(stale_days: int = 90, audit_limit: int = 20
             "role": row.get("role"),
             "team": team,
             "is_active": bool(row.get("is_active", False)),
-            "created_at": created_at.isoformat() if created_at else None,
-            "last_login_at": last_login_at.isoformat() if last_login_at else None,
+            "created_at": created_at_cmp.isoformat() if created_at_cmp else None,
+            "last_login_at": last_login_cmp.isoformat() if last_login_cmp else None,
         }
         if entry["role"] == "admin":
             admins.append(entry)
         if not entry["is_active"]:
             inactive_accounts.append(entry)
         stale = False
-        if isinstance(last_login_at, datetime):
-            stale = last_login_at < cutoff
-        elif isinstance(created_at, datetime):
-            stale = created_at < cutoff
+        if last_login_cmp is not None:
+            stale = last_login_cmp < cutoff
+        elif created_at_cmp is not None:
+            stale = created_at_cmp < cutoff
         if stale:
             stale_accounts.append(entry)
         if team not in teams_with_policy:
