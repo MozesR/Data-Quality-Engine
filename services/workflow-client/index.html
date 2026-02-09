@@ -545,6 +545,74 @@
         display: flex;
         gap: 6px;
       }
+      .popup-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: rgba(13, 22, 40, 0.55);
+        backdrop-filter: blur(2px);
+      }
+      .popup-card {
+        width: min(720px, 100%);
+        background: #ffffff;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+        overflow: hidden;
+      }
+      .popup-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        background: #f3f6fb;
+        border-bottom: 1px solid #e1e8f5;
+      }
+      .popup-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 800;
+        color: #1f2a44;
+      }
+      .popup-close {
+        border: none;
+        background: transparent;
+        color: #546581;
+        font-weight: 900;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: 10px;
+      }
+      .popup-close:hover { background: rgba(13, 45, 110, 0.08); }
+      .popup-body { padding: 16px; }
+      .popup-msg {
+        margin: 0;
+        color: #27334d;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+      .popup-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        padding: 0 16px 16px;
+      }
+      .popup-badge {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 800;
+        border-radius: 999px;
+        padding: 6px 10px;
+      }
+      .popup-badge.err { background: #fee2e2; color: #991b1b; }
+      .popup-badge.warn { background: #ffedd5; color: #9a3412; }
+      .popup-badge.ok { background: #dcfce7; color: #166534; }
       @media (max-width: 900px) {
         .hero { padding: 24px; }
         h1 { font-size: 34px; }
@@ -974,6 +1042,22 @@
       </div>
     </div>
 
+    <div id="errorPopup" class="popup-overlay" onclick="onPopupOverlayClick(event)">
+      <div class="popup-card" role="dialog" aria-modal="true" aria-labelledby="popupTitle" onclick="event.stopPropagation()">
+        <div class="popup-head">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span id="popupBadge" class="popup-badge err">ERROR</span>
+            <h3 id="popupTitle" class="popup-title">Error</h3>
+          </div>
+          <button class="popup-close" onclick="hidePopup()">X</button>
+        </div>
+        <div class="popup-body">
+          <p id="popupMessage" class="popup-msg"></p>
+        </div>
+        <div id="popupActions" class="popup-actions"></div>
+      </div>
+    </div>
+
     <div id="chartTooltip" class="chart-tooltip"></div>
 
     <script>
@@ -993,6 +1077,7 @@
       let sharedMcpServersState = [];
       let adminSharedMcpServersState = [];
       let analyticsSelectedServers = new Set();
+      let popupActions = [];
 
       function switchTab(tab) {
         if (tab === "llm" && !isLlmTabEnabledForActiveServer()) {
@@ -1062,8 +1147,83 @@
       function renderIntegrationStatus(html) { document.getElementById("integrationStatusView").innerHTML = html; }
       function renderAdminOverview(html) { document.getElementById("adminOverview").innerHTML = html; }
       function renderAdminAudit(html) { document.getElementById("adminAuditView").innerHTML = html; }
-      function renderError(htmlTargetFn, message) { htmlTargetFn(`<div class="err"><strong>Error:</strong> ${escapeHtml(message)}</div>`); }
+      function renderError(htmlTargetFn, message) {
+        const msg = String(message || "Unknown error");
+        // When the user is logged in, show errors in a popup and keep them logged in.
+        if (isAppVisible() && isLoggedInOnActive()) {
+          showPopup("Error", msg, "err", [{ label: "Close", className: "secondary", action: "close" }]);
+        }
+        htmlTargetFn(`<div class="err"><strong>Error:</strong> ${escapeHtml(msg)}</div>`);
+      }
       function renderSuggestionDetail(html) { document.getElementById("rulesStatus").innerHTML = html; }
+
+      function isLoggedInOnActive() {
+        const session = getAuthSession(activeMcpBase);
+        return !!(session && session.token);
+      }
+
+      function hasAnyLoggedInSession() {
+        try {
+          return Object.values(authSessionsByServer || {}).some(s => s && s.token);
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function onPopupOverlayClick(evt) {
+        if (evt && evt.target && evt.target.id === "errorPopup") hidePopup();
+      }
+
+      function showPopup(title, message, tone = "err", actions = [{ label: "Close", className: "secondary", action: "close" }]) {
+        const overlay = document.getElementById("errorPopup");
+        const t = document.getElementById("popupTitle");
+        const m = document.getElementById("popupMessage");
+        const badge = document.getElementById("popupBadge");
+        const actionsEl = document.getElementById("popupActions");
+        if (!overlay || !t || !m || !badge || !actionsEl) return;
+
+        const safeTitle = String(title || "Message");
+        const safeMsg = String(message || "");
+        const safeTone = (tone === "ok" || tone === "warn" || tone === "err") ? tone : "err";
+        badge.className = `popup-badge ${safeTone}`;
+        badge.textContent = safeTone === "ok" ? "OK" : safeTone === "warn" ? "WARNING" : "ERROR";
+        t.textContent = safeTitle;
+        m.textContent = safeMsg;
+
+        popupActions = Array.isArray(actions) ? actions : [];
+        actionsEl.innerHTML = popupActions.map((a, idx) => {
+          const label = escapeHtml(a.label || "Action");
+          const cls = escapeHtml(a.className || "secondary");
+          return `<button class="${cls}" onclick="runPopupAction(${idx})">${label}</button>`;
+        }).join("");
+
+        overlay.style.display = "flex";
+      }
+
+      function hidePopup() {
+        const overlay = document.getElementById("errorPopup");
+        if (!overlay) return;
+        overlay.style.display = "none";
+        popupActions = [];
+      }
+
+      function runPopupAction(index) {
+        const a = (popupActions || [])[index];
+        if (!a) return;
+        const kind = String(a.action || "close");
+        if (kind === "close") {
+          hidePopup();
+          return;
+        }
+        if (kind === "go_login") {
+          const base = normalizeBaseUrl(a.base_url || activeMcpBase);
+          hidePopup();
+          if (base && base !== activeMcpBase) setActiveServer(base);
+          showAuthPage(`<div class="err">${escapeHtml(String(a.message || "Please login to continue."))}</div>`);
+          return;
+        }
+        hidePopup();
+      }
 
       function tipEncode(value) {
         return String(value ?? "")
@@ -1573,7 +1733,15 @@
         if (typeof renderer === "function") {
           renderer(`<div class="err">${escapeHtml(message)}</div>`);
         }
-        showAuthPage(`<div class="err">${escapeHtml(message)}</div>`);
+        // If the user is already logged in elsewhere, keep them in-app and show a popup.
+        if (isAppVisible() && hasAnyLoggedInSession()) {
+          showPopup("Login Required", message, "warn", [
+            { label: "Go To Login", className: "warning", action: "go_login", base_url: activeMcpBase, message },
+            { label: "Close", className: "secondary", action: "close" },
+          ]);
+        } else {
+          showAuthPage(`<div class="err">${escapeHtml(message)}</div>`);
+        }
         return false;
       }
 
@@ -1584,15 +1752,20 @@
           return !(session && session.token);
         });
         if (!missing.length) return true;
-        const firstMissing = missing[0];
-        if (firstMissing && firstMissing !== activeMcpBase) {
-          setActiveServer(firstMissing);
-        }
         const message = `Please login on all selected MCP servers for ${contextLabel}. Missing: ${missing.join(", ")}`;
         if (typeof renderer === "function") {
           renderer(`<div class="err">${escapeHtml(message)}</div>`);
         }
-        showAuthPage(`<div class="err">${escapeHtml(message)}</div>`);
+        // Keep user logged in; show popup instead of forcing logout/login page.
+        if (isAppVisible() && hasAnyLoggedInSession()) {
+          const firstMissing = missing[0] || activeMcpBase;
+          showPopup("Login Required", message, "warn", [
+            { label: "Login On Missing Server", className: "warning", action: "go_login", base_url: firstMissing, message },
+            { label: "Close", className: "secondary", action: "close" },
+          ]);
+        } else {
+          showAuthPage(`<div class="err">${escapeHtml(message)}</div>`);
+        }
         return false;
       }
 
