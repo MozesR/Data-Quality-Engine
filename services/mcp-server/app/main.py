@@ -20,6 +20,7 @@ import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, MetaData, String, Table, create_engine, text
 
@@ -28,6 +29,7 @@ DQ_ENGINE_URL = os.getenv("DQ_ENGINE_URL", "http://dq-engine:8001")
 RULES_CONFIG_PATH = os.getenv("RULES_CONFIG_PATH", "/app/config/rules.yaml")
 LLM_CONFIG_PATH = os.getenv("LLM_CONFIG_PATH", "/app/config/llm.yaml")
 MCP_SERVER_NAME = os.getenv("MCP_SERVER_NAME", "dq-workflow-mcp")
+AUDIT_ARTIFACTS_DIR = os.getenv("AUDIT_ARTIFACTS_DIR", "/tmp/idqe-audit")
 
 AUTH_MODE = os.getenv("AUTH_MODE", "demo")  # demo|production
 AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "true" if AUTH_MODE == "production" else "false").lower() == "true"
@@ -2250,7 +2252,7 @@ def build_lineage(run: dict[str, Any], user_id: int | None) -> dict[str, Any]:
 def export_audit_pack(run: dict[str, Any], user_id: int | None, fmt: str = "both") -> dict[str, Any]:
     run_id = str(run.get("run_id"))
     result = to_jsonable(run.get("result")) or {}
-    out_dir = Path("/tmp/idqe-audit") / run_id
+    out_dir = Path(AUDIT_ARTIFACTS_DIR) / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     summary_path = out_dir / "summary.csv"
     with summary_path.open("w", newline="", encoding="utf-8") as f:
@@ -2294,7 +2296,78 @@ def export_audit_pack(run: dict[str, Any], user_id: int | None, fmt: str = "both
         pdf_path = out_dir / "audit-pack.pdf"
         write_minimal_pdf(pdf_path, f"IDQE Audit Pack - {run_id}", lines)
         files["audit_pdf"] = str(pdf_path)
-    return {"run_id": run_id, "files": files, "owner_user_id": user_id}
+
+    artifacts: list[dict[str, Any]] = []
+    for key, path_str in files.items():
+        p = Path(path_str)
+        filename = p.name
+        mime = "application/octet-stream"
+        if filename.endswith(".csv"):
+            mime = "text/csv"
+        elif filename.endswith(".pdf"):
+            mime = "application/pdf"
+        try:
+            size_bytes = int(p.stat().st_size)
+        except Exception:
+            size_bytes = None
+        artifacts.append(
+            {
+                "key": key,
+                "filename": filename,
+                "mime_type": mime,
+                "size_bytes": size_bytes,
+                "download_path": f"/artifacts/{run_id}/{filename}",
+            }
+        )
+
+    return {"run_id": run_id, "files": files, "artifacts": artifacts, "owner_user_id": user_id}
+
+
+def _artifact_owner_allowed(request: Request, run_id: str) -> tuple[dict[str, Any] | None, int | None]:
+    """
+    Returns (user, owner_user_id). Raises HTTPException if access denied.
+    """
+    user = get_current_user(request, allow_anonymous=not AUTH_REQUIRED)
+    user_id = int(user["id"]) if user else None
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT owner_user_id FROM workflow_runs WHERE run_id = :run_id LIMIT 1"),
+            {"run_id": run_id},
+        ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Artifact run not found")
+    owner_uid = row.get("owner_user_id")
+    if AUTH_REQUIRED and not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if user and user.get("role") == "admin":
+        return user, owner_uid
+    if user_id is None:
+        if owner_uid is not None:
+            raise HTTPException(status_code=403, detail="Access denied for this artifact")
+        return user, owner_uid
+    if owner_uid != user_id:
+        raise HTTPException(status_code=403, detail="Access denied for this artifact")
+    return user, owner_uid
+
+
+@app.get("/artifacts/{run_id}/{filename}")
+def download_artifact(run_id: str, filename: str, request: Request) -> FileResponse:
+    # Enforce run ownership and auth rules.
+    _artifact_owner_allowed(request, run_id)
+
+    base_dir = (Path(AUDIT_ARTIFACTS_DIR) / run_id).resolve()
+    target = (base_dir / filename).resolve()
+    if base_dir not in target.parents and target != base_dir:
+        raise HTTPException(status_code=400, detail="Invalid artifact path")
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    media_type = "application/octet-stream"
+    if filename.endswith(".csv"):
+        media_type = "text/csv"
+    elif filename.endswith(".pdf"):
+        media_type = "application/pdf"
+    return FileResponse(path=str(target), media_type=media_type, filename=filename)
 
 
 # ---------- lifecycle ----------

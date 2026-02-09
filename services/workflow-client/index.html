@@ -3009,10 +3009,12 @@
           if (!ensureLoggedIn("Export Audit Pack", renderRun)) return;
           const resp = await mcpCallTo(serverUrl, "export_audit_pack", { run_id: runId, format: "both" });
           const result = resp.result || {};
-          const files = result.files || {};
-          const rows = Object.entries(files).map(([name, path]) => ({
-            "Artifact": name,
-            "File Path": path,
+          const artifacts = (result.artifacts || []).map((a) => ({
+            key: a.key || "-",
+            filename: a.filename || "-",
+            mime_type: a.mime_type || "application/octet-stream",
+            size_bytes: a.size_bytes ?? null,
+            download_path: a.download_path || "",
           }));
           const el = document.getElementById("auditPackOutput");
           if (!el) return;
@@ -3021,7 +3023,7 @@
               <strong>Audit pack exported</strong><br/>
               Run ID: ${escapeHtml(result.run_id || runId)}
             </div>
-            ${rows.length ? renderTable(rows) : "<p>No files were generated.</p>"}
+            ${artifacts.length ? renderAuditArtifactsTable(serverUrl, artifacts) : "<p>No files were generated.</p>"}
           `;
         } catch (e) {
           const el = document.getElementById("auditPackOutput");
@@ -3030,6 +3032,54 @@
           } else {
             renderError(renderRun, parseErrorMessage(e));
           }
+        }
+      }
+
+      function renderAuditArtifactsTable(serverUrl, artifacts) {
+        const rows = artifacts.map((a) => {
+          const size = (typeof a.size_bytes === "number" && a.size_bytes >= 0) ? `${a.size_bytes} B` : "-";
+          const canDownload = a.download_path && a.filename && a.filename !== "-";
+          const link = canDownload
+            ? `<a href=\"#\" onclick=\"downloadArtifact('${escapeHtml(serverUrl)}','${escapeHtml(a.download_path)}','${escapeHtml(a.filename)}'); return false;\">Download</a>`
+            : "-";
+          return {
+            "Artifact": a.key,
+            "File": a.filename,
+            "Size": size,
+            "Action": link,
+          };
+        });
+        return renderTable(rows);
+      }
+
+      async function downloadArtifact(serverUrl, downloadPath, filename) {
+        try {
+          const url = `${normalizeBaseUrl(serverUrl)}${downloadPath}`;
+          const headers = {};
+          const session = getAuthSession(normalizeBaseUrl(serverUrl));
+          if (session && session.token) headers["Authorization"] = `Bearer ${session.token}`;
+
+          const res = await fetch(url, { method: "GET", headers });
+          if (!res.ok) {
+            let msg = `HTTP ${res.status}`;
+            try {
+              msg = (await res.text()) || msg;
+            } catch (_) {}
+            throw new Error(msg);
+          }
+          const blob = await res.blob();
+          const a = document.createElement("a");
+          const objectUrl = URL.createObjectURL(blob);
+          a.href = objectUrl;
+          a.download = filename || "artifact";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 500);
+        } catch (e) {
+          const el = document.getElementById("auditPackOutput");
+          const msg = parseErrorMessage(e);
+          if (el) el.innerHTML = `<div class="err"><strong>Download failed:</strong> ${escapeHtml(msg)}</div>` + el.innerHTML;
         }
       }
 
