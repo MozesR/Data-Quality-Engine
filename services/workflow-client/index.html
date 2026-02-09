@@ -2424,18 +2424,7 @@
       }
 
       function renderAnalyticsImprovementIdeas() {
-        return `
-          <div class="card" style="margin-top:10px;">
-            <h4>Improvement Ideas For DQ Progress Visibility</h4>
-            <ul>
-              <li>Add step progress per run: load dataset, validate rules, score quality, generate suggestions, apply corrections.</li>
-              <li>Show pass/fail counters by rule severity (high/medium/low) and trend each over time.</li>
-              <li>Track MTTR for data quality issues: first detected timestamp vs first corrected timestamp.</li>
-              <li>Add drill-down from each chart point to violating records and applied correction records.</li>
-              <li>Add provider and dataset-type filters so teams can isolate their domain performance quickly.</li>
-            </ul>
-          </div>
-        `;
+        return "";
       }
 
       function loadAuthSessions() {
@@ -4999,7 +4988,6 @@
               <div class="small">Computed as first assessment with violations to first subsequent correction with applied fixes, per dataset.</div>
               ${mttrTableRows.length ? renderTable(mttrTableRows) : "<p>No MTTR data yet (need violations + later corrections).</p>"}
             </div>
-            ${renderAnalyticsImprovementIdeas()}
             <div class="small" style="margin-top:10px;">
               Based on ${assessmentRuns.length} assessment runs and ${correctionRuns.length} correction runs across ${targets.length} selected MCP server(s), date range: ${rangeDays > 0 ? `last ${rangeDays} days` : "all time"}.
             </div>
