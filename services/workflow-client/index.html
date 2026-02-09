@@ -772,13 +772,26 @@
         width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        padding-bottom: 6px;
+        scrollbar-gutter: stable;
       }
       .admin-users-actions {
         display: flex;
         justify-content: flex-end;
         gap: 10px;
         flex-wrap: wrap;
-        min-width: 140px;
+        min-width: 160px;
+      }
+      .admin-users-table {
+        table-layout: auto;
+        min-width: 1080px;
+      }
+      .admin-users-table th:last-child,
+      .admin-users-table td:last-child {
+        width: 240px;
+      }
+      .admin-users-actions button {
+        margin-bottom: 0;
       }
       @media (max-width: 980px) {
         .admin-users-actions {
@@ -3046,7 +3059,9 @@
             <div class="small muted">Page <strong>${adminUsersPage}</strong> / ${totalPages} (showing ${start + 1}-${end} of ${total})</div>
             <button class="ghost" ${adminUsersPage >= totalPages ? "disabled" : ""} onclick="adminSetUsersPage(${adminUsersPage + 1})">Next</button>
           </div>
-          <div class="table-scroll"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
+          <div class="table-scroll">
+            <table class="admin-users-table"><thead>${head}</thead><tbody>${body}</tbody></table>
+          </div>
         `;
         const selAll = document.getElementById("adminUsersSelectAll");
         if (selAll) selAll.checked = !!allSelectedOnPage;
