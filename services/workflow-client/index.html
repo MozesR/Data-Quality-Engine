@@ -221,6 +221,54 @@
       .output {
         min-height: 220px;
       }
+      .split-output {
+        display: grid;
+        grid-template-columns: minmax(340px, 1fr) minmax(520px, 2fr);
+        gap: 14px;
+        margin-top: 14px;
+      }
+      .pane {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 20px rgba(23, 44, 87, 0.04);
+      }
+      .pane-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        background: #f3f6fb;
+        border-bottom: 1px solid #e1e8f5;
+      }
+      .pane-head h4 { margin: 0; }
+      .pane-body {
+        padding: 12px;
+        max-height: 520px;
+        overflow: auto;
+      }
+      .primary-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .primary-actions button { margin-bottom: 0; }
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        box-shadow: 0 10px 22px rgba(45, 95, 216, 0.28);
+      }
+      .btn-primary:hover { background: var(--primary-dark); }
+      .btn-secondary {
+        background: #eef2ff;
+        color: #1f2a44;
+        border: 1px solid #d6dcf2;
+      }
+      .btn-secondary:hover { background: #e2e8ff; }
       .pill {
         display: inline-block;
         padding: 4px 10px;
@@ -541,6 +589,32 @@
       .rule-table td {
         padding: 6px;
       }
+      .input-error {
+        border-color: #ef4444 !important;
+        background: #fff1f2 !important;
+      }
+      .subtabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .subtab-btn {
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.65);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-weight: 800;
+        cursor: pointer;
+        color: #4b5e79;
+      }
+      .subtab-btn.active {
+        background: rgba(45, 95, 216, 0.12);
+        border-color: rgba(45, 95, 216, 0.35);
+        color: var(--primary);
+      }
+      .subtab-panel { display: none; }
+      .subtab-panel.active { display: block; }
       .rule-actions {
         display: flex;
         gap: 6px;
@@ -690,6 +764,7 @@
         <div class="grid">
           <div class="card">
             <h3>Run Workflow</h3>
+            <p class="small" style="margin-top:4px;">Select a data source and one or more MCP servers, then run an assessment or correction.</p>
             <label>Provider</label>
             <select id="provider">
               <option>BANK_A</option>
@@ -703,28 +778,55 @@
             <label>Dataset Id</label>
             <input id="datasetId" value="demo-dataset" />
             <label>Target MCP Servers (Assessment/Correction)</label>
+            <div id="runTargetsSummary" class="small" style="margin:4px 0 8px; color:#405472;">No targets selected.</div>
             <div id="runServerSelector" class="small" style="border:1px solid #e5e7eb; border-radius:8px; padding:8px; margin-bottom:10px;">
               No connected servers.
             </div>
-            <button class="ghost" onclick="selectAllRunServers()">Select All</button>
-            <button class="ghost" onclick="selectActiveRunServer()">Select Active</button>
-            <button class="ghost" onclick="clearRunServers()">Clear</button>
+            <div class="primary-actions">
+              <button class="ghost" onclick="selectAllRunServers()">Select All</button>
+              <button class="ghost" onclick="selectActiveRunServer()">Select Active</button>
+              <button class="ghost" onclick="clearRunServers()">Clear</button>
+            </div>
             <div class="check-row">
               <input type="checkbox" id="autoCorrectOnSourceChange" />
               <label for="autoCorrectOnSourceChange" style="margin:0;">Run correction automatically when data source changes</label>
             </div>
-            <button onclick="previewDataset()">Preview Dataset</button>
-            <button class="ghost" onclick="refreshDriftBaseline()">Refresh Drift Baseline</button>
-            <button onclick="runAssessment()">Run Assessment</button>
-            <button class="secondary" onclick="runCorrection()">Run Correction</button>
-            <button class="secondary" onclick="getRuns()">Workflow History</button>
-            <button class="ghost" onclick="loadWorkflowAnalytics()">Workflow Analytics</button>
+            <div class="primary-actions">
+              <button class="btn-primary" onclick="runAssessment()">Run Assessment</button>
+              <button class="btn-secondary" onclick="runCorrection()">Run Correction</button>
+              <button class="ghost" onclick="previewDataset()">Preview Dataset</button>
+              <button class="ghost" onclick="refreshDriftBaseline()">Refresh Drift Baseline</button>
+              <button class="secondary" onclick="getRuns()">Workflow History</button>
+              <button class="ghost" onclick="loadWorkflowAnalytics()">Workflow Analytics</button>
+            </div>
           </div>
         </div>
 
         <div class="card">
           <h3>Workflow Output</h3>
-          <div id="runOutput" class="output">Ready.</div>
+          <div id="runOutput" class="output">
+            <div id="workflowActionOutput">Ready.</div>
+            <div class="split-output">
+              <div class="pane">
+                <div class="pane-head">
+                  <h4>Workflow Run History</h4>
+                  <div id="workflowHistoryPager" class="inline-controls"></div>
+                </div>
+                <div id="workflowHistoryPane" class="pane-body">
+                  <p class="muted">Click <strong>Workflow History</strong> to load run history for selected servers.</p>
+                </div>
+              </div>
+              <div class="pane">
+                <div class="pane-head">
+                  <h4>Run Detail</h4>
+                  <div class="small muted">Select a run to view.</div>
+                </div>
+                <div id="workflowDetailPane" class="pane-body">
+                  <p class="muted">No run selected.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h3>Workflow Analytics</h3>
@@ -753,6 +855,11 @@
         <div class="card">
           <h3>DQ Rule Editor</h3>
           <p class="small">Edit rules in a readable form and save changes to the active MCP server.</p>
+          <div class="subtabs" style="margin-top:12px;">
+            <button class="subtab-btn active" id="rules-mode-form-btn" onclick="switchRulesMode('form')">Form Editor</button>
+            <button class="subtab-btn" id="rules-mode-yaml-btn" onclick="switchRulesMode('yaml')">Advanced YAML</button>
+          </div>
+          <div id="rules-mode-form" class="subtab-panel active">
           <div class="card" style="padding:14px; margin-bottom:14px;">
             <label>Dataset Type</label>
             <div style="display:flex; gap:8px; align-items:center;">
@@ -760,12 +867,22 @@
               <input id="newDatasetType" placeholder="new dataset type" style="margin-bottom:0; max-width:260px;" />
               <button class="ghost" onclick="addDatasetType()">Add Dataset</button>
             </div>
+            <label style="margin-top:10px;">Search Rules</label>
+            <input id="rulesSearch" placeholder="Search by id / field / type / severity" oninput="setRulesSearch(this.value)" />
           </div>
 
           <div class="card" style="padding:14px; margin-bottom:14px;">
             <h4 style="margin-top:0;">Assessment Rules</h4>
             <div id="assessmentRulesEditor"></div>
-            <button class="ghost" onclick="addAssessmentRule()">Add Assessment Rule</button>
+            <div class="inline-controls" style="align-items:center; gap:10px;">
+              <select id="assessmentRuleTemplate" style="max-width:320px; margin-bottom:0;">
+                <option value="not_null">Template: not_null</option>
+                <option value="allowed_values">Template: allowed_values</option>
+                <option value="range">Template: range</option>
+                <option value="regex">Template: regex</option>
+              </select>
+              <button class="ghost" onclick="addAssessmentRule()">Add Assessment Rule</button>
+            </div>
           </div>
 
           <div class="card" style="padding:14px; margin-bottom:14px;">
@@ -779,6 +896,21 @@
           <button class="secondary" onclick="saveRulesEditor()">Save Rules</button>
           <button class="ghost" onclick="loadSuggestionDecisionViews()">Refresh Suggestion Decisions</button>
           <div id="rulesStatus" style="margin-top:10px;"></div>
+          </div>
+          <div id="rules-mode-yaml" class="subtab-panel">
+            <p class="small">Advanced: edit the underlying YAML directly. Use with care.</p>
+            <div class="editor-topbar">
+              <span class="editor-dot dot-red"></span>
+              <span class="editor-dot dot-yellow"></span>
+              <span class="editor-dot dot-green"></span>
+            </div>
+            <textarea id="rulesYamlText" style="width:100%; min-height:360px; font-family: ui-monospace, Menlo, monospace; font-size:13px; border:1px solid var(--line); border-radius:0 0 10px 10px; padding:10px;"></textarea>
+            <div class="primary-actions" style="margin-top:10px;">
+              <button onclick="loadRulesYaml()">Load YAML</button>
+              <button class="secondary" onclick="saveRulesYaml()">Save YAML</button>
+            </div>
+            <div id="rulesYamlStatus" style="margin-top:10px;"></div>
+          </div>
         </div>
         <div class="grid">
           <div class="card">
@@ -829,7 +961,20 @@
 
         <div class="card">
           <h3>Session Output</h3>
-          <div id="sessionOutput" class="output">No session actions yet.</div>
+          <div id="sessionOutput" class="output">
+            <div class="subtabs" style="margin:0 0 10px;">
+              <button class="subtab-btn active" id="session-out-tools-btn" onclick="switchSessionOutputTab('tools')">Tools</button>
+              <button class="subtab-btn" id="session-out-sources-btn" onclick="switchSessionOutputTab('sources')">Data Sources</button>
+              <button class="subtab-btn" id="session-out-model-btn" onclick="switchSessionOutputTab('model')">Data Model</button>
+              <button class="subtab-btn" id="session-out-dataset-btn" onclick="switchSessionOutputTab('dataset')">Dataset</button>
+              <button class="subtab-btn" id="session-out-relations-btn" onclick="switchSessionOutputTab('relations')">FK Relations</button>
+            </div>
+            <div id="session-out-tools" class="subtab-panel active"><p class="muted">Click <strong>List Tools</strong> to view tools on the active server.</p></div>
+            <div id="session-out-sources" class="subtab-panel"><p class="muted">Click <strong>List Data Sources</strong> to view providers/datasets.</p></div>
+            <div id="session-out-model" class="subtab-panel"><p class="muted">Click <strong>Show Data Model</strong> to view tables and columns.</p></div>
+            <div id="session-out-dataset" class="subtab-panel"><p class="muted">Click <strong>Show Dataset</strong> to preview rows.</p></div>
+            <div id="session-out-relations" class="subtab-panel"><p class="muted">Click <strong>Show FK Relations</strong> to view relations.</p></div>
+          </div>
         </div>
       </section>
 
@@ -837,6 +982,14 @@
         <div class="card">
           <h3>LLM Configuration</h3>
           <p class="small">Configure LLM provider/model/API key. When enabled, new rule suggestions are generated during assessment.</p>
+          <div class="card" style="padding:14px; margin-bottom:14px; background:#eaf2ff;">
+            <strong>Wizard</strong>
+            <ol class="small" style="margin:6px 0 0; padding-left:18px;">
+              <li>Select provider and model.</li>
+              <li>Enter API key (or env var name).</li>
+              <li>Save config and run an assessment to generate suggestions.</li>
+            </ol>
+          </div>
           <label>Provider</label>
           <select id="llmProvider">
             <option value="none">none (disabled)</option>
@@ -856,41 +1009,76 @@
 
           <button onclick="loadLlmConfig()">Load LLM Config</button>
           <button class="secondary" onclick="saveLlmConfig()">Save LLM Config</button>
+          <button class="ghost" onclick="testLlmSuggestions()">Test Suggestions (Sample)</button>
           <div id="llmStatus" style="margin-top:10px;"></div>
+          <p class="small muted" style="margin-top:10px;">Note: enabling LLM may have cost and data-handling implications. Use your organization policy.</p>
         </div>
       </section>
 
       <section id="tab-help" class="tab">
         <div class="card">
-          <h3>How To Use IDQE</h3>
-          <h4>1. Connect MCP Server</h4>
-          <p>Open <strong>MCP Session</strong>, keep `http://localhost:8002`, click <strong>Connect Server</strong>, then <strong>Initialize Active</strong>.</p>
+          <h3>Help</h3>
+          <p class="small">Quick start, common workflows, and troubleshooting.</p>
 
-          <h4>2. Run Data Quality Workflow</h4>
-          <p>Go to <strong>Run Workflow</strong>, select provider + dataset type + dataset ID, choose one or multiple <strong>Target MCP Servers</strong>, then run <strong>Assessment</strong> and <strong>Correction</strong>.</p>
-          <p>If needed, enable <strong>Run correction automatically when data source changes</strong>.</p>
+          <div class="grid" style="margin-top:10px;">
+            <div class="card" style="margin-bottom:0;">
+              <h4 style="margin-top:0;">Quick Start</h4>
+              <ol class="small" style="padding-left:18px; margin:6px 0 0;">
+                <li>Connect a MCP server in <strong>MCP Session</strong>.</li>
+                <li>Login (top right shows your session).</li>
+                <li>Run <strong>Assessment</strong> in <strong>Run Workflow</strong>.</li>
+                <li>Review results in <strong>Workflow Output</strong> and export an <strong>Audit Pack</strong>.</li>
+                <li>Adjust rules in <strong>DQ Rules Editor</strong> and re-run.</li>
+              </ol>
+              <div class="primary-actions" style="margin-top:10px;">
+                <button class="ghost" onclick="switchTab('session')">Go To MCP Session</button>
+                <button class="ghost" onclick="switchTab('run')">Go To Run Workflow</button>
+                <button class="ghost" onclick="switchTab('rules')">Go To Rules</button>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:0;">
+              <h4 style="margin-top:0;">Glossary</h4>
+              <ul class="small" style="margin:6px 0 0; padding-left:18px;">
+                <li><strong>Assessment</strong>: detects violations and computes quality index.</li>
+                <li><strong>Correction</strong>: applies correction rules (e.g., fill defaults).</li>
+                <li><strong>Suggestion</strong>: proposed new rule generated by LLM during assessment.</li>
+                <li><strong>Audit Pack</strong>: CSV/PDF artifacts exported per run for compliance.</li>
+              </ul>
+            </div>
+          </div>
 
-          <h4>3. Review Workflow History</h4>
-          <p>Click <strong>Workflow History</strong>. Use <strong>View Details</strong> on any row to inspect full assessment/correction result.</p>
-
-          <h4>4. Edit DQ Rules</h4>
-          <p>Open <strong>DQ Rules Editor</strong>, click <strong>Load Rules</strong>, edit YAML, then click <strong>Save Rules</strong>.</p>
-          <p>Below the editor, review <strong>Accepted Suggested Rules</strong> and <strong>Declined Suggested Rules</strong>.</p>
-
-          <h4>5. Configure LLM</h4>
-          <p>Open <strong>LLM Config</strong>, set provider/model/endpoint/API key, then click <strong>Save LLM Config</strong>.</p>
-          <p>When LLM is enabled, missing-rule suggestions can appear after assessment.</p>
-
-          <h4>6. Suggestion Queue</h4>
-          <p>In popup, review each suggestion one-by-one:</p>
-          <p><strong>Approve</strong> stores the rule and applies it in next runs. <strong>Decline</strong> rejects it. <strong>Next Suggestion</strong> moves forward.</p>
-
-          <h4>Troubleshooting</h4>
-          <p>If a server call fails, verify services are up and reconnect in <strong>MCP Session</strong>. Then retry the action.</p>
+          <h4 style="margin-top:18px;">Troubleshooting</h4>
+          <details>
+            <summary><strong>I get “Authentication required”</strong></summary>
+            <p class="small">You are not logged in on one of the selected servers. Use the popup button <strong>Go to select MCP server</strong>, then login on that server.</p>
+          </details>
+          <details>
+            <summary><strong>Server not reachable / connection failed</strong></summary>
+            <p class="small">Ensure Docker stack is running. Then go to <strong>MCP Session</strong>, connect to the server URL, and initialize it.</p>
+          </details>
+          <details>
+            <summary><strong>Rule editor shows red fields</strong></summary>
+            <p class="small">Red inputs indicate required values are missing (Rule ID / Field). Fill them before saving.</p>
+          </details>
+          <details>
+            <summary><strong>Downloads do not work</strong></summary>
+            <p class="small">Use <strong>Export Audit Pack</strong> inside a run detail. Then click <strong>Download</strong> for CSV/PDF artifacts.</p>
+          </details>
         </div>
       </section>
 
       <section id="tab-governance" class="tab">
+        <div class="card" style="padding:14px;">
+          <h3 style="margin-top:0;">Governance</h3>
+          <p class="small" style="margin-top:4px;">Rule versioning, scheduled jobs, SLA alerts, and webhook integrations.</p>
+          <div class="subtabs" style="margin:10px 0 0;">
+            <button class="subtab-btn active" id="gov-tab-versions-btn" onclick="switchGovernanceTab('versions')">Rule Versions</button>
+            <button class="subtab-btn" id="gov-tab-jobs-btn" onclick="switchGovernanceTab('jobs')">Jobs & Alerts</button>
+            <button class="subtab-btn" id="gov-tab-webhooks-btn" onclick="switchGovernanceTab('webhooks')">Webhooks</button>
+          </div>
+        </div>
+
+        <div id="gov-tab-versions" class="subtab-panel active">
         <div class="grid">
           <div class="card">
             <h3>Rule Versioning</h3>
@@ -907,40 +1095,58 @@
             <div id="ruleVersionStatus" style="margin-top:10px;"></div>
           </div>
 
-          <div class="card">
-            <h3>Workflow Scheduler & Alerts</h3>
-            <label>Job Name</label>
-            <input id="jobName" placeholder="daily-customer-profile" />
-            <label>Provider</label>
-            <input id="jobProvider" value="BANK_A" />
-            <label>Dataset Type</label>
-            <input id="jobDatasetType" value="customer_profile" />
-            <label>Dataset ID</label>
-            <input id="jobDatasetId" value="scheduled-dataset" />
-            <label>Process Type</label>
-            <select id="jobProcessType">
-              <option value="assessment">assessment</option>
-              <option value="correction">correction</option>
-              <option value="both">both</option>
-            </select>
-            <label>Interval Minutes</label>
-            <input id="jobInterval" type="number" min="1" value="60" />
-            <label>SLA Minimum Quality (optional)</label>
-            <input id="jobSlaMinQuality" type="number" min="0" max="100" placeholder="95" />
-            <button onclick="createWorkflowJobUi()">Create Job</button>
-            <button class="ghost" onclick="runDueJobsUi()">Run Due Jobs</button>
-            <button class="ghost" onclick="loadWorkflowJobsUi()">Refresh Jobs</button>
-            <button class="ghost" onclick="loadAlertsUi()">Refresh Alerts</button>
-            <div id="workflowJobsView" style="margin-top:10px;">No jobs loaded.</div>
-            <div id="alertsView" style="margin-top:10px;">No alerts loaded.</div>
-          </div>
         </div>
 
+        </div>
+
+        <div id="gov-tab-jobs" class="subtab-panel">
+        <div class="card">
+          <h3>Workflow Scheduler & Alerts</h3>
+          <p class="small">Create recurring jobs and monitor alerts when SLA thresholds are breached.</p>
+          <div class="grid">
+            <div class="card" style="margin-bottom:0;">
+              <label>Job Name</label>
+              <input id="jobName" placeholder="daily-customer-profile" />
+              <label>Provider</label>
+              <input id="jobProvider" value="BANK_A" />
+              <label>Dataset Type</label>
+              <input id="jobDatasetType" value="customer_profile" />
+              <label>Dataset ID</label>
+              <input id="jobDatasetId" value="scheduled-dataset" />
+              <label>Process Type</label>
+              <select id="jobProcessType">
+                <option value="assessment">assessment</option>
+                <option value="correction">correction</option>
+                <option value="both">both</option>
+              </select>
+              <label>Interval Minutes</label>
+              <input id="jobInterval" type="number" min="1" value="60" />
+              <label>SLA Minimum Quality (optional)</label>
+              <input id="jobSlaMinQuality" type="number" min="0" max="100" placeholder="95" />
+              <div class="primary-actions">
+                <button onclick="createWorkflowJobUi()">Create Job</button>
+                <button class="ghost" onclick="runDueJobsUi()">Run Due Jobs</button>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:0;">
+              <div class="primary-actions" style="margin-top:0;">
+                <button class="ghost" onclick="loadWorkflowJobsUi()">Refresh Jobs</button>
+                <button class="ghost" onclick="loadAlertsUi()">Refresh Alerts</button>
+              </div>
+              <div id="workflowJobsView" style="margin-top:10px;">No jobs loaded.</div>
+              <div id="alertsView" style="margin-top:10px;">No alerts loaded.</div>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <div id="gov-tab-webhooks" class="subtab-panel">
         <div class="card">
           <h3>Webhook Integration</h3>
           <button class="ghost" onclick="loadIntegrationStatusUi()">Refresh Integration Status</button>
           <button class="secondary" onclick="sendTestEventUi()">Send Test Event</button>
           <div id="integrationStatusView" style="margin-top:10px;">No integration status loaded.</div>
+        </div>
         </div>
       </section>
 
@@ -1083,6 +1289,20 @@
       let workflowHistoryPage = 1;
       const WORKFLOW_HISTORY_PAGE_SIZE = 10;
 
+      function renderWorkflowHistory(html) {
+        const el = document.getElementById("workflowHistoryPane");
+        if (el) el.innerHTML = html;
+      }
+
+      function renderWorkflowDetail(html) {
+        const el = document.getElementById("workflowDetailPane");
+        if (el) el.innerHTML = html;
+      }
+
+      function clearWorkflowDetail() {
+        renderWorkflowDetail("<p class=\"muted\">No run selected.</p>");
+      }
+
       function switchTab(tab) {
         if (tab === "llm" && !isLlmTabEnabledForActiveServer()) {
           tab = "run";
@@ -1090,6 +1310,17 @@
         ["run", "rules", "session", "llm", "governance", "help", "admin"].forEach(t => {
           document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
           document.getElementById(`tab-btn-${t}`).classList.toggle("active", t === tab);
+        });
+      }
+
+      function switchGovernanceTab(tab) {
+        const allowed = ["versions", "jobs", "webhooks"];
+        const next = allowed.includes(tab) ? tab : "versions";
+        allowed.forEach((t) => {
+          const panel = document.getElementById(`gov-tab-${t}`);
+          const btn = document.getElementById(`gov-tab-${t}-btn`);
+          if (panel) panel.classList.toggle("active", t === next);
+          if (btn) btn.classList.toggle("active", t === next);
         });
       }
 
@@ -1137,9 +1368,33 @@
         return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
       }
 
-      function renderRun(html) { document.getElementById("runOutput").innerHTML = html; }
+      function renderRun(html) {
+        const actionEl = document.getElementById("workflowActionOutput");
+        if (actionEl) {
+          actionEl.innerHTML = html;
+          return;
+        }
+        document.getElementById("runOutput").innerHTML = html;
+      }
       function renderWorkflowAnalytics(html) { document.getElementById("workflowAnalyticsOutput").innerHTML = html; }
-      function renderSession(html) { document.getElementById("sessionOutput").innerHTML = html; }
+      let sessionOutputTab = "tools";
+
+      function switchSessionOutputTab(tab) {
+        const allowed = ["tools", "sources", "model", "dataset", "relations"];
+        const next = allowed.includes(tab) ? tab : "tools";
+        sessionOutputTab = next;
+        allowed.forEach((t) => {
+          const panel = document.getElementById(`session-out-${t}`);
+          const btn = document.getElementById(`session-out-${t}-btn`);
+          if (panel) panel.classList.toggle("active", t === next);
+          if (btn) btn.classList.toggle("active", t === next);
+        });
+      }
+
+      function renderSession(html) {
+        const panel = document.getElementById(`session-out-${sessionOutputTab}`) || document.getElementById("sessionOutput");
+        if (panel) panel.innerHTML = html;
+      }
       function renderRulesStatus(html) { document.getElementById("rulesStatus").innerHTML = html; }
       function renderLlmStatus(html) { document.getElementById("llmStatus").innerHTML = html; }
       function renderAcceptedSuggestions(html) { document.getElementById("acceptedSuggestionsView").innerHTML = html; }
@@ -1836,6 +2091,7 @@
         const el = document.getElementById("runServerSelector");
         if (!connectedServers.length) {
           el.innerHTML = "No connected servers.";
+          updateRunTargetsSummary();
           return;
         }
         const rows = connectedServers.map(s => {
@@ -1848,11 +2104,13 @@
           `;
         }).join("");
         el.innerHTML = rows;
+        updateRunTargetsSummary();
       }
 
       function toggleRunServer(url, isChecked) {
         if (isChecked) selectedRunServers.add(url);
         else selectedRunServers.delete(url);
+        updateRunTargetsSummary();
       }
 
       function selectAllRunServers() {
@@ -1868,6 +2126,22 @@
       function clearRunServers() {
         selectedRunServers.clear();
         renderRunServerSelector();
+      }
+
+      function updateRunTargetsSummary() {
+        const el = document.getElementById("runTargetsSummary");
+        if (!el) return;
+        const connected = connectedServers.map(s => s.url);
+        const selected = connected.filter(u => selectedRunServers.has(u));
+        if (!connectedServers.length) {
+          el.textContent = `No connected servers. Default target: ${activeMcpBase}`;
+          return;
+        }
+        if (selected.length) {
+          el.textContent = `${selected.length} server(s) selected.`;
+          return;
+        }
+        el.textContent = `No servers selected. Default target: active server (${activeMcpBase})`;
       }
 
       function getSelectedRunServers() {
@@ -2674,6 +2948,7 @@
 
       async function listTools() {
         try {
+          switchSessionOutputTab("tools");
           if (!ensureLoggedIn("List Tools", renderSession)) return;
           const res = await fetch(`${activeMcpBase}/mcp/tools`);
           const data = await res.json();
@@ -2696,6 +2971,7 @@
 
       async function listDataSources() {
         try {
+          switchSessionOutputTab("sources");
           if (!ensureLoggedIn("List Data Sources", renderSession)) return;
           const data = await mcpCall("list_data_sources");
           const rows = (data.result || []).map(s => ({
@@ -2710,6 +2986,7 @@
 
       async function showDataModel() {
         try {
+          switchSessionOutputTab("model");
           if (!ensureLoggedIn("Show Data Model", renderSession)) return;
           const [modelResp, relResp] = await Promise.all([
             mcpCall("show_data_model"),
@@ -2760,6 +3037,7 @@
 
       async function showDataset() {
         try {
+          switchSessionOutputTab("dataset");
           if (!ensureLoggedIn("Show Dataset", renderSession)) return;
           const args = readArgs();
           const data = await mcpCall("show_dataset", { dataset_type: args.dataset_type, limit: args.limit });
@@ -2771,6 +3049,7 @@
 
       async function showForeignKeyRelations() {
         try {
+          switchSessionOutputTab("relations");
           if (!ensureLoggedIn("Show Foreign Key Relations", renderSession)) return;
           const data = await mcpCall("show_foreign_key_relations");
           const explicitRows = (data.result || {}).explicit_relations || [];
@@ -2915,7 +3194,9 @@
           await runAssessment(false, false);
           await runCorrection(false);
         } catch (e) {
-          renderError(renderRun, parseErrorMessage(e));
+          const msg = parseErrorMessage(e);
+          renderWorkflowDetail(`<div class="err"><strong>Error:</strong> ${escapeHtml(msg)}</div>`);
+          renderError(renderRun, msg);
         }
       }
 
@@ -2948,12 +3229,38 @@
           const targets = getSelectedRunServers();
           if (!ensureLoggedInForServers(targets, "Run Assessment", renderRun)) return;
           const args = readArgs();
-          const results = await Promise.all(
-            targets.map(async (serverUrl) => {
+          const progress = targets.map((serverUrl) => ({
+            "MCP Server": serverUrl,
+            Status: "queued",
+            "Run ID": "-",
+            "Quality Index": "-",
+            "Failed Checks": "-",
+            Violations: "-",
+            "Drift Status": "-",
+          }));
+          renderRun(`<h4>Assessment Progress</h4>${renderTable(progress)}<div class="small muted">Running ${targets.length} server(s)...</div>`);
+
+          const results = [];
+          for (let i = 0; i < targets.length; i++) {
+            const serverUrl = targets[i];
+            progress[i].Status = "running";
+            renderRun(`<h4>Assessment Progress</h4>${renderTable(progress)}<div class="small muted">Running ${i + 1} / ${targets.length}...</div>`);
+            try {
               const data = await mcpCallTo(serverUrl, "run_dq_assessment", args);
-              return { serverUrl, data };
-            })
-          );
+              results.push({ serverUrl, data });
+              const r = data.result || {};
+              const drift = r.drift || {};
+              progress[i].Status = "completed";
+              progress[i]["Run ID"] = data.run_id || "-";
+              progress[i]["Quality Index"] = `${r.quality_index ?? "-"}%`;
+              progress[i]["Failed Checks"] = `${r.failed_checks ?? 0} / ${r.total_checks ?? 0}`;
+              progress[i].Violations = (r.violations || []).length;
+              progress[i]["Drift Status"] = drift.status || "n/a";
+            } catch (_) {
+              progress[i].Status = "failed";
+            }
+            renderRun(`<h4>Assessment Progress</h4>${renderTable(progress)}<div class="small muted">Completed ${i + 1} / ${targets.length}.</div>`);
+          }
 
           const summaryRows = results.map(({ serverUrl, data }) => {
             const r = data.result || {};
@@ -3003,6 +3310,8 @@
               openSuggestionModalWithQueue(suggestions);
             }
           }
+
+          getRuns().catch(() => {});
         } catch (e) {
           renderError(renderRun, parseErrorMessage(e));
         }
@@ -3047,12 +3356,33 @@
           const targets = getSelectedRunServers();
           if (!ensureLoggedInForServers(targets, "Run Correction", renderRun)) return;
           const args = readArgs();
-          const results = await Promise.all(
-            targets.map(async (serverUrl) => {
+          const progress = targets.map((serverUrl) => ({
+            "MCP Server": serverUrl,
+            Status: "queued",
+            "Run ID": "-",
+            Dataset: "-",
+            "Corrections Applied": "-",
+          }));
+          renderRun(`<h4>Correction Progress</h4>${renderTable(progress)}<div class="small muted">Running ${targets.length} server(s)...</div>`);
+
+          const results = [];
+          for (let i = 0; i < targets.length; i++) {
+            const serverUrl = targets[i];
+            progress[i].Status = "running";
+            renderRun(`<h4>Correction Progress</h4>${renderTable(progress)}<div class="small muted">Running ${i + 1} / ${targets.length}...</div>`);
+            try {
               const data = await mcpCallTo(serverUrl, "run_correction", args);
-              return { serverUrl, data };
-            })
-          );
+              results.push({ serverUrl, data });
+              const r = data.result || {};
+              progress[i].Status = "completed";
+              progress[i]["Run ID"] = data.run_id || "-";
+              progress[i].Dataset = r.dataset_id || "-";
+              progress[i]["Corrections Applied"] = r.corrections_applied ?? 0;
+            } catch (_) {
+              progress[i].Status = "failed";
+            }
+            renderRun(`<h4>Correction Progress</h4>${renderTable(progress)}<div class="small muted">Completed ${i + 1} / ${targets.length}.</div>`);
+          }
           const summaryRows = results.map(({ serverUrl, data }) => {
             const r = data.result || {};
             return {
@@ -3067,6 +3397,7 @@
             ${showMessage ? '<div class="ok" style="margin-top:8px;">Correction applied with active rules.</div>' : ''}
             ${renderTable(summaryRows)}
           `);
+          getRuns().catch(() => {});
         } catch (e) {
           renderError(renderRun, parseErrorMessage(e));
         }
@@ -3079,11 +3410,13 @@
             workflowHistoryRows = [];
             workflowHistoryHintsHtml = "";
             workflowHistoryPage = 1;
-            renderRun(`
-              <h4>Workflow Run History</h4>
+            const pager = document.getElementById("workflowHistoryPager");
+            if (pager) pager.innerHTML = "";
+            renderWorkflowHistory(`
               <p>No MCP servers selected.</p>
               <p class="muted">Connect a server in <strong>MCP Session</strong>, then select it as a target.</p>
             `);
+            clearWorkflowDetail();
             return;
           }
 
@@ -3122,7 +3455,10 @@
             workflowHistoryRows = [];
             workflowHistoryHintsHtml = hints;
             workflowHistoryPage = 1;
-            renderRun(`<h4>Workflow Run History</h4>${hints}<p>No runs found.</p>`);
+            const pager = document.getElementById("workflowHistoryPager");
+            if (pager) pager.innerHTML = "";
+            renderWorkflowHistory(`${hints}<p>No runs found.</p>`);
+            clearWorkflowDetail();
             return;
           }
 
@@ -3145,7 +3481,9 @@
         workflowHistoryPage = Math.max(1, Math.min(totalPages, Number(page || 1)));
 
         if (!total) {
-          renderRun(`<h4>Workflow Run History</h4>${workflowHistoryHintsHtml || ""}<p>No runs found.</p>`);
+          const pager = document.getElementById("workflowHistoryPager");
+          if (pager) pager.innerHTML = "";
+          renderWorkflowHistory(`${workflowHistoryHintsHtml || ""}<p>No runs found.</p>`);
           return;
         }
 
@@ -3171,14 +3509,18 @@
         const prevDisabled = workflowHistoryPage <= 1 ? "disabled" : "";
         const nextDisabled = workflowHistoryPage >= totalPages ? "disabled" : "";
 
-        renderRun(`
-          <h4>Workflow Run History</h4>
-          ${workflowHistoryHintsHtml || ""}
-          <div class="inline-controls" style="margin:10px 0 14px;">
+        const pager = document.getElementById("workflowHistoryPager");
+        if (pager) {
+          pager.innerHTML = `
             <button class="ghost" ${prevDisabled} onclick="renderWorkflowHistoryPage(${workflowHistoryPage - 1})">Prev</button>
-            <div class="small" style="padding:0 10px;">Page <strong>${workflowHistoryPage}</strong> / ${totalPages} (showing ${start + 1}-${end} of ${total})</div>
+            <div class="small" style="padding:0 8px;">${start + 1}-${end} / ${total}</div>
             <button class="ghost" ${nextDisabled} onclick="renderWorkflowHistoryPage(${workflowHistoryPage + 1})">Next</button>
-          </div>
+          `;
+        }
+
+        renderWorkflowHistory(`
+          ${workflowHistoryHintsHtml || ""}
+          <div class="small muted" style="margin-top:6px;">Page <strong>${workflowHistoryPage}</strong> / ${totalPages}</div>
           <table><thead>${head}</thead><tbody>${body}</tbody></table>
         `);
       }
@@ -3206,8 +3548,7 @@
           const hasAssessment = result.quality_index !== undefined || violations.length > 0;
           const hasCorrection = result.corrections_applied !== undefined || corrections.length > 0;
 
-          renderRun(`
-            <h4>Workflow Run Detail</h4>
+          renderWorkflowDetail(`
             <div class="metric"><strong>MCP Server:</strong> ${escapeHtml(serverUrl)}</div>
             <div class="metric"><strong>Run ID:</strong> ${escapeHtml(d.run_id)}</div>
             <div class="metric"><strong>Dataset ID:</strong> ${escapeHtml(d.dataset_id)}</div>
@@ -3230,7 +3571,6 @@
             <h4 style="margin-top:14px;">Audit Pack Export</h4>
             <button class="ghost" onclick="exportAuditPackForRun('${escapeHtml(serverUrl)}','${escapeHtml(d.run_id)}')">Export Audit Pack (CSV/PDF)</button>
             <div id="auditPackOutput" style="margin-top:10px;"></div>
-            <button class="secondary" onclick="getRuns()">Back To History</button>
           `);
         } catch (e) {
           renderError(renderRun, parseErrorMessage(e));
@@ -3557,6 +3897,23 @@
         const c = Object.keys(cfg.correction_rules || {});
         return Array.from(new Set([...a, ...c])).sort();
       }
+      let rulesSearchQuery = "";
+
+      function setRulesSearch(value) {
+        rulesSearchQuery = String(value || "").trim().toLowerCase();
+        renderRulesEditorTables(getSelectedRulesDatasetType());
+      }
+
+      function switchRulesMode(mode) {
+        const m = (mode === "yaml") ? "yaml" : "form";
+        document.getElementById("rules-mode-form").classList.toggle("active", m === "form");
+        document.getElementById("rules-mode-yaml").classList.toggle("active", m === "yaml");
+        document.getElementById("rules-mode-form-btn").classList.toggle("active", m === "form");
+        document.getElementById("rules-mode-yaml-btn").classList.toggle("active", m === "yaml");
+        if (m === "yaml") {
+          loadRulesYaml().catch(() => {});
+        }
+      }
 
       function getSelectedRulesDatasetType() {
         const el = document.getElementById("rulesDatasetType");
@@ -3573,7 +3930,13 @@
       }
 
       function renderAssessmentRulesTable(datasetType) {
-        const rows = rulesConfigState.assessment_rules?.[datasetType] || [];
+        let rows = rulesConfigState.assessment_rules?.[datasetType] || [];
+        if (rulesSearchQuery) {
+          rows = rows.filter((r) => {
+            const hay = `${r.id || ""} ${r.field || ""} ${r.type || ""} ${r.severity || ""}`.toLowerCase();
+            return hay.includes(rulesSearchQuery);
+          });
+        }
         if (!rows.length) {
           document.getElementById("assessmentRulesEditor").innerHTML = "<p>No assessment rules for this dataset type.</p>";
           return;
@@ -3583,10 +3946,12 @@
           const paramsText = r.params
             ? Object.entries(r.params).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join("; ")
             : "";
+          const idCls = r.id ? "" : "input-error";
+          const fieldCls = r.field ? "" : "input-error";
           return `
             <tr>
-              <td><input value="${escapeHtml(r.id || "")}" onchange="updateAssessmentRule(${i}, 'id', this.value)" /></td>
-              <td><input value="${escapeHtml(r.field || "")}" onchange="updateAssessmentRule(${i}, 'field', this.value)" /></td>
+              <td><input class="${idCls}" value="${escapeHtml(r.id || "")}" onchange="updateAssessmentRule(${i}, 'id', this.value)" /></td>
+              <td><input class="${fieldCls}" value="${escapeHtml(r.field || "")}" onchange="updateAssessmentRule(${i}, 'field', this.value)" /></td>
               <td>
                 <select onchange="updateAssessmentRule(${i}, 'type', this.value)">
                   ${["not_null","range","allowed_values","regex"].map(t => `<option value="${t}" ${r.type===t?"selected":""}>${t}</option>`).join("")}
@@ -3606,15 +3971,23 @@
       }
 
       function renderCorrectionRulesTable(datasetType) {
-        const rows = rulesConfigState.correction_rules?.[datasetType] || [];
+        let rows = rulesConfigState.correction_rules?.[datasetType] || [];
+        if (rulesSearchQuery) {
+          rows = rows.filter((r) => {
+            const hay = `${r.field || ""} ${r.type || ""} ${r.default ?? ""}`.toLowerCase();
+            return hay.includes(rulesSearchQuery);
+          });
+        }
         if (!rows.length) {
           document.getElementById("correctionRulesEditor").innerHTML = "<p>No correction rules for this dataset type.</p>";
           return;
         }
         const head = "<tr><th>Field</th><th>Type</th><th>Default</th><th>Action</th></tr>";
-        const body = rows.map((r, i) => `
+        const body = rows.map((r, i) => {
+          const fieldCls = r.field ? "" : "input-error";
+          return `
           <tr>
-            <td><input value="${escapeHtml(r.field || "")}" onchange="updateCorrectionRule(${i}, 'field', this.value)" /></td>
+            <td><input class="${fieldCls}" value="${escapeHtml(r.field || "")}" onchange="updateCorrectionRule(${i}, 'field', this.value)" /></td>
             <td>
               <select onchange="updateCorrectionRule(${i}, 'type', this.value)">
                 <option value="fill_default_if_null" ${r.type==="fill_default_if_null"?"selected":""}>fill_default_if_null</option>
@@ -3623,7 +3996,8 @@
             <td><input value="${escapeHtml(r.default ?? "")}" onchange="updateCorrectionRule(${i}, 'default', this.value)" /></td>
             <td><button class="ghost" onclick="removeCorrectionRule(${i})">Delete</button></td>
           </tr>
-        `).join("");
+        `;
+        }).join("");
         document.getElementById("correctionRulesEditor").innerHTML = `<table class="rule-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
       }
 
@@ -3687,13 +4061,45 @@
 
       function addAssessmentRule() {
         const dt = getSelectedRulesDatasetType();
-        rulesConfigState.assessment_rules[dt].push({
+        const tpl = String(document.getElementById("assessmentRuleTemplate")?.value || "not_null");
+        const base = {
           id: `R${Date.now().toString().slice(-6)}`,
           field: "",
-          type: "not_null",
+          type: tpl,
           severity: "medium",
+        };
+        if (tpl === "allowed_values") base.params = { values: ["A", "B"] };
+        if (tpl === "range") base.params = { min: 0, max: 100 };
+        if (tpl === "regex") base.params = { pattern: "^[A-Za-z0-9_-]+$" };
+        rulesConfigState.assessment_rules[dt].push({
+          ...base,
         });
         renderRulesEditorTables(dt);
+      }
+
+      async function loadRulesYaml() {
+        try {
+          if (!ensureLoggedIn("Load Rules YAML", (html) => { document.getElementById("rulesYamlStatus").innerHTML = html; })) return;
+          const resp = await mcpCall("get_rules_yaml");
+          const yamlText = (resp.result || {}).yaml_text || "";
+          document.getElementById("rulesYamlText").value = String(yamlText);
+          document.getElementById("rulesYamlStatus").innerHTML = `<div class="ok">YAML loaded from ${escapeHtml(activeMcpBase)}.</div>`;
+        } catch (e) {
+          renderError((html) => { document.getElementById("rulesYamlStatus").innerHTML = html; }, parseErrorMessage(e));
+        }
+      }
+
+      async function saveRulesYaml() {
+        try {
+          if (!ensureLoggedIn("Save Rules YAML", (html) => { document.getElementById("rulesYamlStatus").innerHTML = html; })) return;
+          const yamlText = document.getElementById("rulesYamlText").value || "";
+          await mcpCall("save_rules_yaml", { yaml_text: yamlText });
+          document.getElementById("rulesYamlStatus").innerHTML = `<div class="ok">YAML saved successfully to ${escapeHtml(activeMcpBase)}.</div>`;
+          // Refresh form state after YAML save.
+          await loadRulesEditor();
+        } catch (e) {
+          renderError((html) => { document.getElementById("rulesYamlStatus").innerHTML = html; }, parseErrorMessage(e));
+        }
       }
 
       function updateCorrectionRule(index, key, value) {
@@ -4077,6 +4483,34 @@
           const yamlText = buildLlmYamlFromForm();
           await mcpCall("save_llm_yaml", { yaml_text: yamlText });
           renderLlmStatus(`<div class="ok">LLM config saved. New assessments will use this setting.</div>`);
+        } catch (e) {
+          renderError(renderLlmStatus, parseErrorMessage(e));
+        }
+      }
+
+      async function testLlmSuggestions() {
+        try {
+          if (!ensureLoggedIn("Test LLM Suggestions", renderLlmStatus)) return;
+          const args = readArgs();
+          const resp = await mcpCall("suggest_rules", {
+            provider: args.provider,
+            dataset_type: args.dataset_type,
+            dataset_id: `${args.dataset_id || args.dataset_type}-llm-test`,
+            limit: Math.min(Number(args.limit || 20), 50),
+          });
+          const result = resp.result || {};
+          const suggestions = Array.isArray(result.suggestions) ? result.suggestions : (Array.isArray(result) ? result : []);
+          const count = suggestions.length;
+          if (count) {
+            showPopup("LLM Suggestions", `Generated ${count} suggestion(s). Opening review queue...`, "ok", [
+              { label: "Close", className: "secondary", action: "close" },
+            ]);
+            openSuggestionModalWithQueue(suggestions.map(s => ({ ...s, __server_url: activeMcpBase })));
+          } else {
+            showPopup("LLM Suggestions", "No new suggestions were generated for this sample.", "warn", [
+              { label: "Close", className: "secondary", action: "close" },
+            ]);
+          }
         } catch (e) {
           renderError(renderLlmStatus, parseErrorMessage(e));
         }
