@@ -6,10 +6,12 @@ import difflib
 import hashlib
 import hmac
 import json
+import logging
 import os
 import random
 import secrets
 import statistics
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -17,11 +19,14 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import jwt
 import yaml
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from pythonjsonlogger import jsonlogger
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, MetaData, String, Table, create_engine, text
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://dq:dq@postgres:5432/dq")
@@ -49,6 +54,31 @@ TICKET_WEBHOOK_URL = os.getenv("TICKET_WEBHOOK_URL", "").strip()
 MAX_QUERY_LIMIT = int(os.getenv("MAX_QUERY_LIMIT", "1000"))
 MAX_LIST_LIMIT = int(os.getenv("MAX_LIST_LIMIT", "500"))
 JOB_CLAIM_SECONDS = int(os.getenv("JOB_CLAIM_SECONDS", "300"))
+
+JWT_ISSUER = os.getenv("JWT_ISSUER", MCP_SERVER_NAME)
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "idqe-ui")
+REFRESH_TOKEN_TTL_DAYS = int(os.getenv("REFRESH_TOKEN_TTL_DAYS", "14"))
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+# Prometheus metrics (best-effort; safe even if not scraped).
+HTTP_REQUESTS_TOTAL = Counter(
+    "idqe_http_requests_total",
+    "Total HTTP requests",
+    ["path", "method", "status"],
+)
+HTTP_REQUEST_LATENCY_SECONDS = Histogram(
+    "idqe_http_request_latency_seconds",
+    "HTTP request latency in seconds",
+    ["path", "method"],
+)
+MCP_TOOL_CALLS_TOTAL = Counter(
+    "idqe_mcp_tool_calls_total",
+    "Total MCP tool calls",
+    ["tool"],
+)
+AUTH_LOGIN_TOTAL = Counter("idqe_auth_login_total", "Total login attempts", ["outcome"])
+WORKFLOW_JOB_RUN_TOTAL = Counter("idqe_workflow_job_run_total", "Total workflow job executions", ["status"])
 
 DEFAULT_RULES_CONFIG: dict[str, Any] = {
     "data_sources": [
@@ -153,6 +183,27 @@ users = Table(
     Column("is_active", Boolean, nullable=False),
     Column("created_at", DateTime, nullable=False),
     Column("last_login_at", DateTime, nullable=True),
+)
+refresh_tokens = Table(
+    "refresh_tokens",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("token_id", String(64), nullable=False, unique=True),
+    Column("user_id", Integer, nullable=False),
+    Column("token_hash", String(128), nullable=False),
+    Column("expires_at", DateTime, nullable=False),
+    Column("revoked_at", DateTime, nullable=True),
+    Column("created_at", DateTime, nullable=False),
+)
+revoked_tokens = Table(
+    "revoked_tokens",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("jti", String(64), nullable=False, unique=True),
+    Column("token_type", String(16), nullable=False),  # access
+    Column("user_id", Integer, nullable=False),
+    Column("expires_at", DateTime, nullable=False),
+    Column("created_at", DateTime, nullable=False),
 )
 user_settings = Table(
     "user_settings",
@@ -290,6 +341,40 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
+
+logger = logging.getLogger("idqe")
+
+
+def configure_logging() -> None:
+    root = logging.getLogger()
+    root.setLevel(LOG_LEVEL)
+    # Replace handlers to avoid duplicate logs under reload.
+    root.handlers = []
+    h = logging.StreamHandler()
+    fmt = jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s %(request_id)s")
+    h.setFormatter(fmt)
+    root.addHandler(h)
+
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
+    request_id = request.headers.get("X-Request-ID", "").strip() or f"req-{uuid.uuid4().hex}"
+    request.state.request_id = request_id  # type: ignore[attr-defined]
+    path = request.url.path
+    method = request.method
+    start = time.perf_counter()
+    try:
+        resp = await call_next(request)
+        resp.headers["X-Request-ID"] = request_id
+        status = str(resp.status_code)
+        return resp
+    except Exception:
+        status = "500"
+        raise
+    finally:
+        dur = max(0.0, time.perf_counter() - start)
+        HTTP_REQUESTS_TOTAL.labels(path=path, method=method, status=status).inc()
+        HTTP_REQUEST_LATENCY_SECONDS.labels(path=path, method=method).observe(dur)
 
 
 # ---------- utility ----------
@@ -440,32 +525,134 @@ def b64url_decode(data: str) -> bytes:
     return base64.urlsafe_b64decode((data + pad).encode())
 
 
-def make_token(user_id: int, role: str) -> str:
+def sha256_hex(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def is_access_token_revoked(jti: str) -> bool:
+    if not jti:
+        return False
     now = utcnow()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT 1 FROM revoked_tokens WHERE jti = :jti AND expires_at > :now LIMIT 1"),
+            {"jti": jti, "now": now},
+        ).first()
+    return bool(row)
+
+
+def revoke_access_token(jti: str, user_id: int, expires_at: datetime) -> None:
+    if not jti:
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO revoked_tokens (jti, token_type, user_id, expires_at, created_at)
+                VALUES (:jti, 'access', :uid, :exp, :now)
+                ON CONFLICT (jti) DO NOTHING
+                """
+            ),
+            {"jti": jti, "uid": user_id, "exp": expires_at, "now": utcnow()},
+        )
+
+
+def make_access_token(user: dict[str, Any]) -> str:
+    now = utcnow()
+    exp = now + timedelta(minutes=ACCESS_TOKEN_TTL_MINUTES)
+    jti = f"at-{uuid.uuid4().hex}"
     payload = {
-        "uid": user_id,
-        "role": role,
+        "typ": "access",
+        "jti": jti,
+        "sub": str(user["id"]),
+        "email": str(user.get("email") or ""),
+        "role": str(user.get("role") or "user"),
+        "team": str(user.get("team") or "default"),
         "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(minutes=ACCESS_TOKEN_TTL_MINUTES)).timestamp()),
+        "exp": int(exp.timestamp()),
+        "iss": JWT_ISSUER,
+        "aud": JWT_AUDIENCE,
     }
-    payload_raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    body = b64url(payload_raw)
-    sig = b64url(hmac.new(AUTH_SECRET.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).digest())
-    return f"{body}.{sig}"
+    return jwt.encode(payload, AUTH_SECRET, algorithm="HS256")
 
 
-def parse_token(token: str) -> dict[str, Any] | None:
+def parse_access_token(token: str) -> dict[str, Any] | None:
     try:
-        body, sig = token.split(".", 1)
-        expected = b64url(hmac.new(AUTH_SECRET.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).digest())
-        if not hmac.compare_digest(sig, expected):
+        payload = jwt.decode(
+            token,
+            AUTH_SECRET,
+            algorithms=["HS256"],
+            audience=JWT_AUDIENCE,
+            issuer=JWT_ISSUER,
+        )
+        if payload.get("typ") != "access":
             return None
-        payload = json.loads(b64url_decode(body).decode("utf-8"))
-        if int(payload.get("exp", 0)) < int(utcnow().timestamp()):
+        jti = str(payload.get("jti") or "")
+        if jti and is_access_token_revoked(jti):
             return None
         return payload
     except Exception:
         return None
+
+
+def make_refresh_token(user_id: int) -> str:
+    token_id = f"rt-{uuid.uuid4().hex}"
+    secret_part = secrets.token_urlsafe(32)
+    raw = f"{token_id}.{secret_part}"
+    now = utcnow()
+    exp = now + timedelta(days=REFRESH_TOKEN_TTL_DAYS)
+    with engine.begin() as conn:
+        conn.execute(
+            refresh_tokens.insert().values(
+                token_id=token_id,
+                user_id=user_id,
+                token_hash=sha256_hex(raw),
+                expires_at=exp,
+                revoked_at=None,
+                created_at=now,
+            )
+        )
+    return raw
+
+
+def rotate_refresh_token(raw_refresh_token: str) -> tuple[int, str] | None:
+    raw = str(raw_refresh_token or "").strip()
+    if "." not in raw:
+        return None
+    token_id = raw.split(".", 1)[0]
+    now = utcnow()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT id, user_id, token_hash, expires_at, revoked_at
+                FROM refresh_tokens
+                WHERE token_id = :tid
+                LIMIT 1
+                """
+            ),
+            {"tid": token_id},
+        ).mappings().first()
+        if not row:
+            return None
+        if row.get("revoked_at") is not None:
+            return None
+        exp = row.get("expires_at")
+        if not isinstance(exp, datetime) or exp <= now:
+            return None
+        if str(row.get("token_hash") or "") != sha256_hex(raw):
+            return None
+
+        # Revoke old, create new.
+        conn.execute(
+            text("UPDATE refresh_tokens SET revoked_at = :now WHERE token_id = :tid"),
+            {"now": now, "tid": token_id},
+        )
+        user_id = int(row.get("user_id") or 0)
+    if user_id <= 0:
+        return None
+    new_raw = make_refresh_token(user_id)
+    return user_id, new_raw
 
 
 def get_current_user(request: Request, allow_anonymous: bool = False) -> dict[str, Any] | None:
@@ -475,7 +662,7 @@ def get_current_user(request: Request, allow_anonymous: bool = False) -> dict[st
             return None
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = auth[7:]
-    payload = parse_token(token)
+    payload = parse_access_token(token)
     if not payload:
         if allow_anonymous:
             return None
@@ -484,7 +671,7 @@ def get_current_user(request: Request, allow_anonymous: bool = False) -> dict[st
     with engine.begin() as conn:
         row = conn.execute(
             text("SELECT id, email, name, role, team, is_active FROM users WHERE id = :id LIMIT 1"),
-            {"id": int(payload.get("uid", 0))},
+            {"id": int(payload.get("sub", 0))},
         ).mappings().first()
     if not row:
         if allow_anonymous:
@@ -2273,7 +2460,30 @@ def export_audit_pack(run: dict[str, Any], user_id: int | None, fmt: str = "both
             if key in result:
                 w.writerow([key, result.get(key)])
 
-    files = {"summary_csv": str(summary_path)}
+    # OpenLineage-style event (simplified).
+    ol_event = {
+        "eventType": "COMPLETE",
+        "eventTime": utcnow().isoformat(),
+        "run": {"runId": run_id},
+        "job": {"namespace": "idqe", "name": f"dq:{run.get('provider')}:{run.get('dataset_type')}:{run.get('process_type')}"},
+        "inputs": [{"namespace": str(run.get("provider") or "unknown"), "name": str(run.get("dataset_id") or "dataset")}],
+        "outputs": [],
+        "facets": {
+            "dq": {
+                "provider": run.get("provider"),
+                "dataset_type": run.get("dataset_type"),
+                "dataset_id": run.get("dataset_id"),
+                "process_type": run.get("process_type"),
+                "quality_index": result.get("quality_index"),
+                "failed_checks": result.get("failed_checks"),
+                "corrections_applied": result.get("corrections_applied"),
+            }
+        },
+    }
+    ol_path = out_dir / "openlineage.json"
+    ol_path.write_text(json.dumps(to_jsonable(ol_event), indent=2), encoding="utf-8")
+
+    files = {"summary_csv": str(summary_path), "openlineage_json": str(ol_path)}
     violations = result.get("violations", []) or []
     if violations:
         v_path = out_dir / "violations.csv"
@@ -2315,6 +2525,8 @@ def export_audit_pack(run: dict[str, Any], user_id: int | None, fmt: str = "both
             mime = "text/csv"
         elif filename.endswith(".pdf"):
             mime = "application/pdf"
+        elif filename.endswith(".json"):
+            mime = "application/json"
         try:
             size_bytes = int(p.stat().st_size)
         except Exception:
@@ -2376,6 +2588,8 @@ def download_artifact(run_id: str, filename: str, request: Request) -> FileRespo
         media_type = "text/csv"
     elif filename.endswith(".pdf"):
         media_type = "application/pdf"
+    elif filename.endswith(".json"):
+        media_type = "application/json"
     return FileResponse(path=str(target), media_type=media_type, filename=filename)
 
 
@@ -2385,6 +2599,10 @@ def ensure_tables() -> None:
 
 
 def ensure_schema_evolution() -> None:
+    # Only apply runtime schema tweaks for Postgres. Other DBs (e.g. sqlite in tests)
+    # should rely on `metadata.create_all()` or Alembic migrations.
+    if engine.dialect.name != "postgresql":
+        return
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
         conn.execute(text("ALTER TABLE suggestion_decisions ADD COLUMN IF NOT EXISTS owner_user_id INTEGER"))
@@ -2403,6 +2621,9 @@ def ensure_schema_evolution() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_drift_owner_dataset_created ON drift_baselines(owner_user_id, dataset_type, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_logs(created_at DESC)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_suggestion_approvals_sid_uid ON suggestion_approvals(suggestion_id, approver_user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_exp ON refresh_tokens(user_id, expires_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_revoked ON refresh_tokens(revoked_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_revoked_tokens_exp ON revoked_tokens(expires_at DESC)"))
         conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS idx_pending_suggestions_status_owner_created "
@@ -2425,12 +2646,26 @@ def cleanup_suggestion_store() -> None:
         )
 
 
+def cleanup_auth_tokens() -> None:
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM revoked_tokens WHERE expires_at < :now"), {"now": now})
+        conn.execute(text("DELETE FROM refresh_tokens WHERE expires_at < :now"), {"now": now})
+        # Keep revoked refresh tokens for a short period for audit/debug, then purge.
+        conn.execute(
+            text("DELETE FROM refresh_tokens WHERE revoked_at IS NOT NULL AND revoked_at < :cutoff"),
+            {"cutoff": now - timedelta(days=30)},
+        )
+
+
 @app.on_event("startup")
 def startup() -> None:
+    configure_logging()
     ensure_security_defaults()
     ensure_tables()
     ensure_schema_evolution()
     cleanup_suggestion_store()
+    cleanup_auth_tokens()
     ensure_demo_admin()
     ensure_demo_shared_servers()
 
@@ -2438,6 +2673,11 @@ def startup() -> None:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/mcp/initialize")
@@ -2459,6 +2699,9 @@ def tools_list() -> dict[str, Any]:
         "tools": [
             {"name": "auth_register", "description": "Create user account"},
             {"name": "auth_login", "description": "Login and get bearer token"},
+            {"name": "auth_refresh", "description": "Refresh access token using refresh token"},
+            {"name": "auth_logout", "description": "Logout (revoke refresh token and current access token)"},
+            {"name": "auth_logout_all", "description": "Logout everywhere (revoke all refresh tokens + current access token)"},
             {"name": "auth_me", "description": "Get current user profile"},
             {"name": "admin_list_users", "description": "Admin: list users"},
             {"name": "admin_update_user", "description": "Admin: update role/active state"},
@@ -2513,7 +2756,7 @@ def tools_list() -> dict[str, Any]:
 
 
 def get_request_user_for_tool(request: Request, tool: str) -> dict[str, Any] | None:
-    public_tools = {"auth_register", "auth_login", "auth_me"}
+    public_tools = {"auth_register", "auth_login", "auth_me", "auth_refresh"}
     if tool in public_tools:
         return get_current_user(request, allow_anonymous=True)
     if not AUTH_REQUIRED:
@@ -2521,10 +2764,207 @@ def get_request_user_for_tool(request: Request, tool: str) -> dict[str, Any] | N
     return get_current_user(request)
 
 
+async def execute_due_workflow_jobs(
+    *,
+    include_all: bool,
+    owner_user_id: int | None,
+    job_limit: int,
+    row_limit: int,
+) -> dict[str, Any]:
+    now = utcnow()
+    claim_until = now + timedelta(seconds=JOB_CLAIM_SECONDS)
+    claimer = f"{MCP_SERVER_NAME}:{uuid.uuid4().hex[:8]}"
+    limit = clamp_limit(job_limit, 20, MAX_LIST_LIMIT)
+    with engine.begin() as conn:
+        if include_all:
+            rows = conn.execute(
+                text(
+                    """
+                    WITH due AS (
+                      SELECT id
+                      FROM workflow_jobs
+                      WHERE is_active = true
+                        AND next_run_at <= :now
+                        AND (claimed_until IS NULL OR claimed_until < :now)
+                      ORDER BY next_run_at ASC
+                      FOR UPDATE SKIP LOCKED
+                      LIMIT :limit
+                    )
+                    UPDATE workflow_jobs j
+                    SET claimed_until = :claim_until,
+                        claimed_by = :claimer,
+                        updated_at = :now
+                    FROM due
+                    WHERE j.id = due.id
+                    RETURNING j.*
+                    """
+                ),
+                {"now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
+            ).mappings().all()
+        elif owner_user_id is None:
+            rows = conn.execute(
+                text(
+                    """
+                    WITH due AS (
+                      SELECT id
+                      FROM workflow_jobs
+                      WHERE owner_user_id IS NULL
+                        AND is_active = true
+                        AND next_run_at <= :now
+                        AND (claimed_until IS NULL OR claimed_until < :now)
+                      ORDER BY next_run_at ASC
+                      FOR UPDATE SKIP LOCKED
+                      LIMIT :limit
+                    )
+                    UPDATE workflow_jobs j
+                    SET claimed_until = :claim_until,
+                        claimed_by = :claimer,
+                        updated_at = :now
+                    FROM due
+                    WHERE j.id = due.id
+                    RETURNING j.*
+                    """
+                ),
+                {"now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
+            ).mappings().all()
+        else:
+            rows = conn.execute(
+                text(
+                    """
+                    WITH due AS (
+                      SELECT id
+                      FROM workflow_jobs
+                      WHERE owner_user_id = :uid
+                        AND is_active = true
+                        AND next_run_at <= :now
+                        AND (claimed_until IS NULL OR claimed_until < :now)
+                      ORDER BY next_run_at ASC
+                      FOR UPDATE SKIP LOCKED
+                      LIMIT :limit
+                    )
+                    UPDATE workflow_jobs j
+                    SET claimed_until = :claim_until,
+                        claimed_by = :claimer,
+                        updated_at = :now
+                    FROM due
+                    WHERE j.id = due.id
+                    RETURNING j.*
+                    """
+                ),
+                {"uid": owner_user_id, "now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
+            ).mappings().all()
+
+    executed: list[dict[str, Any]] = []
+    rl = clamp_limit(row_limit, 50, MAX_QUERY_LIMIT)
+    for row in rows:
+        item = dict(row)
+        jid = str(item.get("job_id"))
+        owner_uid = item.get("owner_user_id")
+        try:
+            if item.get("process_type") in {"assessment", "both"}:
+                _, assess_result = await execute_assessment(
+                    str(item.get("dataset_type")),
+                    str(item.get("dataset_id")),
+                    str(item.get("provider")),
+                    rl,
+                    owner_uid,
+                )
+                run_id = insert_run(
+                    str(item.get("dataset_id")),
+                    str(item.get("dataset_type")),
+                    str(item.get("provider")),
+                    "assessment",
+                    "completed",
+                    assess_result,
+                    owner_uid,
+                )
+                sla_target = item.get("sla_min_quality")
+                if sla_target is not None and float(assess_result.get("quality_index", 100) or 100) < float(sla_target):
+                    create_alert(
+                        owner_uid,
+                        "scheduled_sla",
+                        "high",
+                        f"SLA breach in job {jid}: quality {assess_result.get('quality_index')} < {sla_target}",
+                        {"job_id": jid, "run_id": run_id, "quality_index": assess_result.get("quality_index")},
+                    )
+                    await send_event(
+                        "sla_breach",
+                        {"job_id": jid, "run_id": run_id, "quality_index": assess_result.get("quality_index"), "target": sla_target},
+                    )
+            if item.get("process_type") in {"correction", "both"}:
+                _, corr_result = await execute_correction(
+                    str(item.get("dataset_type")),
+                    str(item.get("dataset_id")),
+                    str(item.get("provider")),
+                    rl,
+                    owner_uid,
+                )
+                insert_run(
+                    str(item.get("dataset_id")),
+                    str(item.get("dataset_type")),
+                    str(item.get("provider")),
+                    "correction",
+                    "completed",
+                    corr_result,
+                    owner_uid,
+                )
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        """
+                        UPDATE workflow_jobs
+                        SET last_run_at = :now,
+                            last_status = 'completed',
+                            last_message = :message,
+                            next_run_at = :next_run,
+                            claimed_until = NULL,
+                            claimed_by = NULL,
+                            updated_at = :now
+                        WHERE job_id = :job_id
+                        """
+                    ),
+                    {
+                        "now": now,
+                        "next_run": now + timedelta(minutes=int(item.get("interval_minutes") or 60)),
+                        "message": "Executed successfully",
+                        "job_id": jid,
+                    },
+                )
+            WORKFLOW_JOB_RUN_TOTAL.labels(status="completed").inc()
+            executed.append({"job_id": jid, "status": "completed"})
+        except Exception as exc:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        """
+                        UPDATE workflow_jobs
+                        SET last_run_at = :now,
+                            last_status = 'failed',
+                            last_message = :message,
+                            next_run_at = :next_run,
+                            claimed_until = NULL,
+                            claimed_by = NULL,
+                            updated_at = :now
+                        WHERE job_id = :job_id
+                        """
+                    ),
+                    {
+                        "now": now,
+                        "next_run": now + timedelta(minutes=int(item.get("interval_minutes") or 60)),
+                        "message": str(exc)[:512],
+                        "job_id": jid,
+                    },
+                )
+            WORKFLOW_JOB_RUN_TOTAL.labels(status="failed").inc()
+            executed.append({"job_id": jid, "status": "failed", "error": str(exc)})
+    return {"executed": executed, "count": len(executed)}
+
+
 @app.post("/mcp/call")
 async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
     tool = call.tool
     args = call.arguments
+    MCP_TOOL_CALLS_TOTAL.labels(tool=tool).inc()
     user = get_request_user_for_tool(request, tool)
     user_id = int(user["id"]) if user else None
 
@@ -2561,6 +3001,7 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
         password = str(args.get("password", ""))
         key = login_key(email, client_ip(request))
         if login_is_locked(key):
+            AUTH_LOGIN_TOTAL.labels(outcome="locked").inc()
             raise HTTPException(status_code=429, detail="Too many failed login attempts. Try again later.")
         with engine.begin() as conn:
             row = conn.execute(
@@ -2569,16 +3010,28 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
             ).mappings().first()
             if not row or not verify_password(password, str(row.get("password_hash", ""))):
                 login_record_failure(key)
+                AUTH_LOGIN_TOTAL.labels(outcome="invalid").inc()
                 raise HTTPException(status_code=401, detail="Invalid credentials")
             if not row.get("is_active"):
                 login_record_failure(key)
+                AUTH_LOGIN_TOTAL.labels(outcome="inactive").inc()
                 raise HTTPException(status_code=403, detail="User is inactive")
             conn.execute(text("UPDATE users SET last_login_at = :ts WHERE id = :id"), {"ts": utcnow(), "id": row["id"]})
         login_record_success(key)
-        token = make_token(int(row["id"]), str(row["role"]))
+        user_payload = {
+            "id": int(row["id"]),
+            "email": row["email"],
+            "name": row["name"],
+            "role": row["role"],
+            "team": row.get("team") or "default",
+        }
+        token = make_access_token(user_payload)
+        refresh_token = make_refresh_token(int(row["id"]))
+        AUTH_LOGIN_TOTAL.labels(outcome="success").inc()
         return {
             "result": {
                 "access_token": token,
+                "refresh_token": refresh_token,
                 "token_type": "bearer",
                 "user": {
                     "id": row["id"],
@@ -2589,6 +3042,73 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
                 },
             }
         }
+
+    if tool == "auth_refresh":
+        raw_rt = str(args.get("refresh_token", "")).strip()
+        rotated = rotate_refresh_token(raw_rt)
+        if not rotated:
+            raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+        uid, new_rt = rotated
+        with engine.begin() as conn:
+            urow = conn.execute(
+                text("SELECT id, email, name, role, team, is_active FROM users WHERE id = :id LIMIT 1"),
+                {"id": uid},
+            ).mappings().first()
+        if not urow or not urow.get("is_active"):
+            raise HTTPException(status_code=403, detail="User is inactive")
+        user_payload = dict(urow)
+        access = make_access_token(user_payload)
+        return {
+            "result": {
+                "access_token": access,
+                "refresh_token": new_rt,
+                "token_type": "bearer",
+                "user": {
+                    "id": urow["id"],
+                    "email": urow["email"],
+                    "name": urow["name"],
+                    "role": urow["role"],
+                    "team": urow.get("team") or "default",
+                },
+            }
+        }
+
+    if tool == "auth_logout":
+        enforce_authenticated_write(user)
+        # Revoke refresh token if provided, plus current access token.
+        raw_rt = str(args.get("refresh_token", "")).strip()
+        if raw_rt and "." in raw_rt:
+            tid = raw_rt.split(".", 1)[0]
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE refresh_tokens SET revoked_at = :now WHERE token_id = :tid AND user_id = :uid"),
+                    {"now": utcnow(), "tid": tid, "uid": int(user.get("id") or 0)},
+                )
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            payload = parse_access_token(auth[7:]) or {}
+            jti = str(payload.get("jti") or "")
+            exp_ts = int(payload.get("exp") or 0)
+            if jti and exp_ts:
+                revoke_access_token(jti, int(user.get("id") or 0), datetime.fromtimestamp(exp_ts, tz=timezone.utc))
+        return {"result": {"message": "Logged out"}}
+
+    if tool == "auth_logout_all":
+        enforce_authenticated_write(user)
+        uid = int(user.get("id") or 0)
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE refresh_tokens SET revoked_at = :now WHERE user_id = :uid AND revoked_at IS NULL"),
+                {"now": utcnow(), "uid": uid},
+            )
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            payload = parse_access_token(auth[7:]) or {}
+            jti = str(payload.get("jti") or "")
+            exp_ts = int(payload.get("exp") or 0)
+            if jti and exp_ts:
+                revoke_access_token(jti, uid, datetime.fromtimestamp(exp_ts, tz=timezone.utc))
+        return {"result": {"message": "Logged out on all sessions"}}
 
     if tool == "auth_me":
         if not user:
@@ -3274,186 +3794,10 @@ async def call_tool(call: MCPCall, request: Request) -> dict[str, Any]:
     if tool == "run_due_workflow_jobs":
         enforce_authenticated_write(user)
         include_all = bool(args.get("include_all", False)) and user is not None and user.get("role") == "admin"
-        now = utcnow()
-        claim_until = now + timedelta(seconds=JOB_CLAIM_SECONDS)
-        claimer = f"{MCP_SERVER_NAME}:{uuid.uuid4().hex[:8]}"
-        limit = clamp_limit(args.get("limit", 20), 20, MAX_LIST_LIMIT)
-        with engine.begin() as conn:
-            if include_all:
-                rows = conn.execute(
-                    text(
-                        """
-                        WITH due AS (
-                          SELECT id
-                          FROM workflow_jobs
-                          WHERE is_active = true
-                            AND next_run_at <= :now
-                            AND (claimed_until IS NULL OR claimed_until < :now)
-                          ORDER BY next_run_at ASC
-                          FOR UPDATE SKIP LOCKED
-                          LIMIT :limit
-                        )
-                        UPDATE workflow_jobs j
-                        SET claimed_until = :claim_until,
-                            claimed_by = :claimer,
-                            updated_at = :now
-                        FROM due
-                        WHERE j.id = due.id
-                        RETURNING j.*
-                        """
-                    ),
-                    {"now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
-                ).mappings().all()
-            elif user_id is None:
-                rows = conn.execute(
-                    text(
-                        """
-                        WITH due AS (
-                          SELECT id
-                          FROM workflow_jobs
-                          WHERE owner_user_id IS NULL
-                            AND is_active = true
-                            AND next_run_at <= :now
-                            AND (claimed_until IS NULL OR claimed_until < :now)
-                          ORDER BY next_run_at ASC
-                          FOR UPDATE SKIP LOCKED
-                          LIMIT :limit
-                        )
-                        UPDATE workflow_jobs j
-                        SET claimed_until = :claim_until,
-                            claimed_by = :claimer,
-                            updated_at = :now
-                        FROM due
-                        WHERE j.id = due.id
-                        RETURNING j.*
-                        """
-                    ),
-                    {"now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
-                ).mappings().all()
-            else:
-                rows = conn.execute(
-                    text(
-                        """
-                        WITH due AS (
-                          SELECT id
-                          FROM workflow_jobs
-                          WHERE owner_user_id = :uid
-                            AND is_active = true
-                            AND next_run_at <= :now
-                            AND (claimed_until IS NULL OR claimed_until < :now)
-                          ORDER BY next_run_at ASC
-                          FOR UPDATE SKIP LOCKED
-                          LIMIT :limit
-                        )
-                        UPDATE workflow_jobs j
-                        SET claimed_until = :claim_until,
-                            claimed_by = :claimer,
-                            updated_at = :now
-                        FROM due
-                        WHERE j.id = due.id
-                        RETURNING j.*
-                        """
-                    ),
-                    {"uid": user_id, "now": now, "limit": limit, "claim_until": claim_until, "claimer": claimer},
-                ).mappings().all()
-        executed: list[dict[str, Any]] = []
-        for row in rows:
-            item = dict(row)
-            jid = str(item.get("job_id"))
-            owner_uid = item.get("owner_user_id")
-            try:
-                if item.get("process_type") in {"assessment", "both"}:
-                    _, assess_result = await execute_assessment(
-                        str(item.get("dataset_type")),
-                        str(item.get("dataset_id")),
-                        str(item.get("provider")),
-                        clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT),
-                        owner_uid,
-                    )
-                    run_id = insert_run(
-                        str(item.get("dataset_id")),
-                        str(item.get("dataset_type")),
-                        str(item.get("provider")),
-                        "assessment",
-                        "completed",
-                        assess_result,
-                        owner_uid,
-                    )
-                    sla_target = item.get("sla_min_quality")
-                    if sla_target is not None and float(assess_result.get("quality_index", 100) or 100) < float(sla_target):
-                        create_alert(
-                            owner_uid,
-                            "scheduled_sla",
-                            "high",
-                            f"SLA breach in job {jid}: quality {assess_result.get('quality_index')} < {sla_target}",
-                            {"job_id": jid, "run_id": run_id, "quality_index": assess_result.get("quality_index")},
-                        )
-                        await send_event("sla_breach", {"job_id": jid, "run_id": run_id, "quality_index": assess_result.get("quality_index"), "target": sla_target})
-                if item.get("process_type") in {"correction", "both"}:
-                    _, corr_result = await execute_correction(
-                        str(item.get("dataset_type")),
-                        str(item.get("dataset_id")),
-                        str(item.get("provider")),
-                        clamp_limit(args.get("limit", 50), 50, MAX_QUERY_LIMIT),
-                        owner_uid,
-                    )
-                    insert_run(
-                        str(item.get("dataset_id")),
-                        str(item.get("dataset_type")),
-                        str(item.get("provider")),
-                        "correction",
-                        "completed",
-                        corr_result,
-                        owner_uid,
-                    )
-                with engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            """
-                            UPDATE workflow_jobs
-                            SET last_run_at = :now,
-                                last_status = 'completed',
-                                last_message = :message,
-                                next_run_at = :next_run,
-                                claimed_until = NULL,
-                                claimed_by = NULL,
-                                updated_at = :now
-                            WHERE job_id = :job_id
-                            """
-                        ),
-                        {
-                            "now": now,
-                            "next_run": now + timedelta(minutes=int(item.get("interval_minutes") or 60)),
-                            "message": "Executed successfully",
-                            "job_id": jid,
-                        },
-                    )
-                executed.append({"job_id": jid, "status": "completed"})
-            except Exception as exc:
-                with engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            """
-                            UPDATE workflow_jobs
-                            SET last_run_at = :now,
-                                last_status = 'failed',
-                                last_message = :message,
-                                next_run_at = :next_run,
-                                claimed_until = NULL,
-                                claimed_by = NULL,
-                                updated_at = :now
-                            WHERE job_id = :job_id
-                            """
-                        ),
-                        {
-                            "now": now,
-                            "next_run": now + timedelta(minutes=int(item.get("interval_minutes") or 60)),
-                            "message": str(exc)[:512],
-                            "job_id": jid,
-                        },
-                    )
-                executed.append({"job_id": jid, "status": "failed", "error": str(exc)})
-        return {"result": {"executed": executed, "count": len(executed)}}
+        job_limit = int(args.get("limit", 20) or 20)
+        row_limit = int(args.get("row_limit", 50) or 50)
+        res = await execute_due_workflow_jobs(include_all=include_all, owner_user_id=None if include_all else user_id, job_limit=job_limit, row_limit=row_limit)
+        return {"result": res}
 
     if tool == "create_ticket_from_run":
         enforce_authenticated_write(user)

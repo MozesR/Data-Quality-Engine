@@ -15,6 +15,7 @@ services:
 
   mcp-server:
     image: ${DH_USER:?set_DH_USER}/idqe-mcp-server:${TAG:-latest}
+    command: ["sh", "-c", "alembic -c /app/alembic.ini upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8002"]
     environment:
       DATABASE_URL: postgresql+psycopg2://dq:${DB_PASSWORD:?set_DB_PASSWORD}@postgres-primary:5432/dq
       DQ_ENGINE_URL: http://dq-engine:8001
@@ -33,6 +34,32 @@ services:
         target: /app/config/llm.yaml
     deploy:
       replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  mcp-worker:
+    image: ${DH_USER:?set_DH_USER}/idqe-mcp-server:${TAG:-latest}
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://dq:${DB_PASSWORD:?set_DB_PASSWORD}@postgres-primary:5432/dq
+      DQ_ENGINE_URL: http://dq-engine:8001
+      RULES_CONFIG_PATH: /app/config/rules.yaml
+      LLM_CONFIG_PATH: /app/config/llm.yaml
+      AUTH_MODE: production
+      AUTH_REQUIRED: "true"
+      AUTH_SECRET: ${AUTH_SECRET:?set_AUTH_SECRET}
+      ACCESS_TOKEN_TTL_MINUTES: 120
+      UI_ALLOW_LLM_TAB: "false"
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?set_CORS_ALLOW_ORIGINS}
+      WORKER_INCLUDE_ALL: "true"
+      WORKER_INTERVAL_SECONDS: 30
+    configs:
+      - source: rules_prod
+        target: /app/config/rules.yaml
+      - source: llm_prod
+        target: /app/config/llm.yaml
+    deploy:
+      replicas: 1
       restart_policy:
         condition: on-failure
 

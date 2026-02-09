@@ -3162,7 +3162,31 @@
         return mcpCallTo(activeMcpBase, tool, argumentsObj);
       }
 
-      async function mcpCallTo(baseUrl, tool, argumentsObj = {}) {
+      async function refreshSessionForServer(baseUrl) {
+        const session = getAuthSession(baseUrl);
+        if (!session || !session.refresh_token) return false;
+        try {
+          const res = await fetch(`${baseUrl}/mcp/call`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tool: "auth_refresh", arguments: { refresh_token: session.refresh_token } }),
+          });
+          const data = await res.json();
+          if (!res.ok) return false;
+          const result = data.result || {};
+          if (!result.access_token) return false;
+          setAuthSession(baseUrl, {
+            token: result.access_token,
+            refresh_token: result.refresh_token || session.refresh_token,
+            user: result.user || session.user || {},
+          });
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      async function mcpCallTo(baseUrl, tool, argumentsObj = {}, _opts = {}) {
         const headers = { "Content-Type": "application/json" };
         const session = getAuthSession(baseUrl);
         if (session && session.token) headers["Authorization"] = `Bearer ${session.token}`;
@@ -3171,14 +3195,39 @@
           headers,
           body: JSON.stringify({ tool, arguments: argumentsObj }),
         });
-        const data = await res.json();
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (_) {
+          data = { detail: await res.text() };
+        }
+
         if (res.status === 401 && session) {
+          const alreadyRefreshed = !!_opts._refreshed;
+          if (!alreadyRefreshed && session.refresh_token) {
+            const ok = await refreshSessionForServer(baseUrl);
+            if (ok) {
+              return mcpCallTo(baseUrl, tool, argumentsObj, { ..._opts, _refreshed: true });
+            }
+          }
+          // Clear only this server's session; keep the user in-app if they have any active session elsewhere.
           clearAuthSession(baseUrl);
-          if (baseUrl === activeMcpBase && isAppVisible()) {
+          if (isAppVisible() && hasAnyLoggedInSession()) {
+            showPopup(
+              "Authentication Required",
+              `Session expired on ${baseUrl}. Please login on that server to continue.`,
+              "warn",
+              [
+                { label: "Go to select MCP server", className: "primary", action: "go_select_server", base_url: baseUrl, message: `Login on ${baseUrl} to continue.` },
+                { label: "Close", className: "secondary", action: "close" },
+              ]
+            );
+          } else if (baseUrl === activeMcpBase && isAppVisible()) {
             showAuthPage(`<div class="err">Session expired on ${escapeHtml(baseUrl)}. Please login again.</div>`);
           }
         }
-        if (!res.ok) throw new Error(JSON.stringify(data));
+
+        if (!res.ok) throw new Error(typeof data === "object" ? JSON.stringify(data) : String(data));
         return data;
       }
 
@@ -3234,6 +3283,7 @@
           const result = resp.result || {};
           setAuthSession(serverUrl, {
             token: result.access_token,
+            refresh_token: result.refresh_token || "",
             user: result.user || {},
           });
           setActiveServer(serverUrl);
@@ -3267,6 +3317,7 @@
           const session = getAuthSession(serverUrl) || {};
           setAuthSession(serverUrl, {
             token: session.token || "",
+            refresh_token: session.refresh_token || "",
             user: result.user || {},
           });
           if (!opts.silent) {
@@ -3281,8 +3332,17 @@
         }
       }
 
-      function authLogout() {
-        clearAuthSession(activeMcpBase);
+      async function authLogout() {
+        const base = activeMcpBase;
+        const session = getAuthSession(base) || {};
+        try {
+          if (session && session.token) {
+            await mcpCallTo(base, "auth_logout", { refresh_token: session.refresh_token || "" }, { _refreshed: true });
+          }
+        } catch (_) {
+          // Best-effort logout: still clear local session.
+        }
+        clearAuthSession(base);
         adminUsersCache = [];
         sharedMcpServersState = [];
         adminSharedMcpServersState = [];
@@ -3302,7 +3362,13 @@
         reset("adminComplianceView", "No compliance report loaded.");
         reset("sharedServersList", "No shared servers available.");
         reset("adminSharedServersEditor", "No shared server rows.");
-        showAuthPage(`<div class="ok">Logged out from ${escapeHtml(activeMcpBase)}</div>`);
+        if (hasAnyLoggedInSession()) {
+          // Stay in-app if the user is still logged in on at least one server.
+          showAppPage();
+          showPopup("Logged out", `Logged out from ${base}.`, "ok", [{ label: "Close", className: "secondary", action: "close" }]);
+        } else {
+          showAuthPage(`<div class="ok">Logged out from ${escapeHtml(base)}</div>`);
+        }
       }
 
       function renderAdminUsers(users) {
